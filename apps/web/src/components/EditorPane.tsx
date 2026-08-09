@@ -1,4 +1,5 @@
 import Editor from "@monaco-editor/react";
+import { useWorkbench } from "../store/workbench";
 
 export function EditorPane({
   path,
@@ -11,32 +12,79 @@ export function EditorPane({
   onChange: (v: string) => void;
   readOnly?: boolean;
 }) {
+  const s = useWorkbench();
+
   if (!path) {
-    return <div className="editor-empty">从右侧文件树打开文件，可人手修改后 Continue Run</div>;
-  }
-  const lang = languageFor(path);
-  return (
-    <div className="editor-wrap">
-      <div className="editor-bar">
-        <span className="mono">{path}</span>
-        {readOnly && <span className="badge">只读</span>}
+    return (
+      <div className="view">
+        <div className="editor-empty">
+          从右侧文件树打开一个文件。人手改完保存，再点「采纳并继续」，磁盘内容优先。
+        </div>
       </div>
-      <Editor
-        height="100%"
-        language={lang}
-        theme="vs"
-        value={value}
-        onChange={(v) => onChange(v ?? "")}
-        options={{
-          readOnly: !!readOnly,
-          minimap: { enabled: false },
-          fontSize: 13,
-          fontFamily: "JetBrains Mono, Cascadia Code, Consolas, monospace",
-          scrollBeyondLastLine: false,
-          wordWrap: "on",
-          automaticLayout: true,
-        }}
-      />
+    );
+  }
+
+  const parts = path.split("/");
+  const lang = languageFor(path);
+
+  return (
+    <div className="view">
+      <div className="code-bar">
+        {parts.map((p, i) => (
+          <span key={`${p}-${i}`}>
+            {i > 0 && <span className="crumb-sep"> / </span>}
+            <span className={i === parts.length - 1 ? "crumb-leaf" : undefined}>{p}</span>
+          </span>
+        ))}
+        {s.dirty && <span className="badge">未保存</span>}
+        {readOnly && <span className="badge">只读</span>}
+        <div className="segmented">
+          <button
+            type="button"
+            className={s.centerView === "code" ? "on" : ""}
+            onClick={() => s.setCenterView("code")}
+          >
+            代码
+          </button>
+          <button
+            type="button"
+            className={s.centerView === "diff" ? "on" : ""}
+            onClick={() => s.setCenterView("diff")}
+          >
+            差异
+          </button>
+        </div>
+        <button
+          type="button"
+          className="mini-btn"
+          style={{ marginLeft: 8 }}
+          disabled={!s.dirty}
+          onClick={() => void s.saveFile()}
+        >
+          保存
+        </button>
+      </div>
+      <div className="editor-host">
+        <Editor
+          height="100%"
+          language={lang}
+          theme="vs"
+          value={value}
+          onChange={(v) => onChange(v ?? "")}
+          options={{
+            readOnly: !!readOnly,
+            minimap: { enabled: false },
+            fontSize: 12.5,
+            lineHeight: 21,
+            fontFamily: "JetBrains Mono, Cascadia Code, Consolas, monospace",
+            scrollBeyondLastLine: false,
+            wordWrap: "on",
+            automaticLayout: true,
+            renderLineHighlight: "gutter",
+            padding: { top: 10 },
+          }}
+        />
+      </div>
     </div>
   );
 }

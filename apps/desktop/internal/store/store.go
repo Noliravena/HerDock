@@ -93,9 +93,23 @@ CREATE TABLE IF NOT EXISTS always_allow (
   scope_key TEXT PRIMARY KEY,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  cron TEXT NOT NULL,
+  prompt TEXT,
+  provider_id TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  next_run_at TEXT,
+  last_run_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, seq);
 CREATE INDEX IF NOT EXISTS idx_sessions_ws ON sessions(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_runs_session ON runs(session_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_ws ON schedules(workspace_id);
 `)
 	return err
 }
@@ -423,6 +437,182 @@ func (s *Store) ListArtifacts(workspaceID string) ([]map[string]any, error) {
 		})
 	}
 	return out, rows.Err()
+}
+
+// Schedule is a workspace-scoped recurring run definition (右侧「定时任务」卡片).
+type Schedule struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	Name        string `json:"name"`
+	Cron        string `json:"cron"`
+	Prompt      string `json:"prompt,omitempty"`
+	ProviderID  string `json:"providerId,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	NextRunAt   string `json:"nextRunAt,omitempty"`
+	LastRunAt   string `json:"lastRunAt,omitempty"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+func (s *Store) UpsertSchedule(sc Schedule) error {
+	enabled := 0
+	if sc.Enabled {
+		enabled = 1
+	}
+	_, err := s.db.Exec(`
+INSERT INTO schedules(id,workspace_id,name,cron,prompt,provider_id,enabled,next_run_at,last_run_at,created_at,updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT(id) DO UPDATE SET
+  name=excluded.name, cron=excluded.cron, prompt=excluded.prompt, provider_id=excluded.provider_id,
+  enabled=excluded.enabled, next_run_at=excluded.next_run_at, last_run_at=excluded.last_run_at,
+  updated_at=excluded.updated_at
+`, sc.ID, sc.WorkspaceID, sc.Name, sc.Cron, sc.Prompt, sc.ProviderID, enabled,
+		nullStr(sc.NextRunAt), nullStr(sc.LastRunAt), sc.CreatedAt, sc.UpdatedAt)
+	return err
+}
+
+func (s *Store) ListSchedules(workspaceID string) ([]Schedule, error) {
+	query := `SELECT id,workspace_id,name,cron,prompt,provider_id,enabled,next_run_at,last_run_at,created_at,updated_at FROM schedules`
+	args := []any{}
+	if workspaceID != "" {
+		query += ` WHERE workspace_id=?`
+		args = append(args, workspaceID)
+	}
+	query += ` ORDER BY created_at ASC`
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Schedule{}
+	for rows.Next() {
+		var sc Schedule
+		var prompt, provider, next, last sql.NullString
+		var enabled int
+		if err := rows.Scan(&sc.ID, &sc.WorkspaceID, &sc.Name, &sc.Cron, &prompt, &provider, &enabled, &next, &last, &sc.CreatedAt, &sc.UpdatedAt); err != nil {
+			return nil, err
+		}
+		sc.Prompt = prompt.String
+		sc.ProviderID = provider.String
+		sc.NextRunAt = next.String
+		sc.LastRunAt = last.String
+		sc.Enabled = enabled == 1
+		out = append(out, sc)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetSchedule(id string) (*Schedule, error) {
+	var sc Schedule
+	var prompt, provider, next, last sql.NullString
+	var enabled int
+	err := s.db.QueryRow(`SELECT id,workspace_id,name,cron,prompt,provider_id,enabled,next_run_at,last_run_at,created_at,updated_at FROM schedules WHERE id=?`, id).
+		Scan(&sc.ID, &sc.WorkspaceID, &sc.Name, &sc.Cron, &prompt, &provider, &enabled, &next, &last, &sc.CreatedAt, &sc.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sc.Prompt = prompt.String
+	sc.ProviderID = provider.String
+	sc.NextRunAt = next.String
+	sc.LastRunAt = last.String
+	sc.Enabled = enabled == 1
+	return &sc, nil
+}
+
+func (s *Store) DeleteSchedule(id string) error {
+	_, err := s.db.Exec(`DELETE FROM schedules WHERE id=?`, id)
+	return err
+}
+
+// UsageRow aggregates token/credit spend for the 用量 panel.
+type UsageRow struct {
+	Runs   int `json:"runs"`
+	Tokens int `json:"tokens"`
+	Calls  int `json:"calls"`
+}
+
+// AggregateUsage sums token usage across runs created since `since` (RFC3339, empty = all time).
+func (s *Store) AggregateUsage(since string) (UsageRow, error) {
+	var out UsageRow
+	query := `SELECT token_usage FROM runs`
+	args := []any{}
+	if since != "" {
+		query += ` WHERE created_at >= ?`
+		args = append(args, since)
+	}
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tu sql.NullString
+		if err := rows.Scan(&tu); err != nil {
+			return out, err
+		}
+		out.Runs++
+		if !tu.Valid || tu.String == "" || tu.String == "null" {
+			continue
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(tu.String), &m); err != nil {
+			continue
+		}
+		out.Tokens += toInt(m["total"])
+	}
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	if since != "" {
+		_ = s.db.QueryRow(`SELECT COUNT(1) FROM events WHERE ts >= ?`, since).Scan(&out.Calls)
+	} else {
+		_ = s.db.QueryRow(`SELECT COUNT(1) FROM events`).Scan(&out.Calls)
+	}
+	return out, nil
+}
+
+// RunUsage returns token totals for a single run, summing usage.tokens events.
+func (s *Store) RunUsage(runID string) (UsageRow, error) {
+	var out UsageRow
+	out.Runs = 1
+	rows, err := s.db.Query(`SELECT type,payload FROM events WHERE run_id=? ORDER BY seq ASC`, runID)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var typ, payload string
+		if err := rows.Scan(&typ, &payload); err != nil {
+			return out, err
+		}
+		out.Calls++
+		if typ != "usage.tokens" {
+			continue
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(payload), &m); err != nil {
+			continue
+		}
+		if usage, ok := m["usage"].(map[string]any); ok {
+			out.Tokens += toInt(usage["total"])
+		}
+	}
+	return out, rows.Err()
+}
+
+func toInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	}
+	return 0
 }
 
 func (s *Store) SetAlwaysAllow(scopeKey string) error {

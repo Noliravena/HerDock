@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { FsNode } from "../host/client";
+import { iconForPath } from "../store/workbench";
 
 export function FileTree({
   nodes,
@@ -13,31 +15,71 @@ export function FileTree({
 }) {
   return (
     <div className="file-tree">
-      {nodes.map((n) => (
-        <div key={n.path}>
-          <div
-            className={`file-row ${active === n.path ? "active" : ""}`}
-            style={{ paddingLeft: 12 + depth * 12 }}
-            onClick={() => n.kind === "file" && onOpen(n.path)}
-          >
-            <span className={`ftype ${n.kind}`}>{n.kind === "dir" ? "▸" : icon(n.name)}</span>
-            <span className="fname">{n.name}</span>
-            {n.gitStatus && <span className={`gst ${n.gitStatus}`}>{n.gitStatus}</span>}
-          </div>
-          {n.children && n.children.length > 0 && (
-            <FileTree nodes={n.children} active={active} onOpen={onOpen} depth={depth + 1} />
-          )}
-        </div>
-      ))}
+      {nodes.map((n) =>
+        n.kind === "dir" ? (
+          <DirRow key={n.path} node={n} active={active} onOpen={onOpen} depth={depth} />
+        ) : (
+          <FileRow key={n.path} node={n} active={active} onOpen={onOpen} depth={depth} />
+        ),
+      )}
     </div>
   );
 }
 
-function icon(name: string) {
-  if (name.endsWith(".py")) return "py";
-  if (name.endsWith(".ts") || name.endsWith(".tsx")) return "ts";
-  if (name.endsWith(".md")) return "md";
-  if (name.endsWith(".json") || name.endsWith(".yml") || name.endsWith(".yaml")) return "{}";
-  if (name.endsWith(".csv") || name.endsWith(".xlsx")) return "xls";
-  return "·";
+function DirRow({
+  node,
+  active,
+  onOpen,
+  depth,
+}: {
+  node: FsNode;
+  active?: string | null;
+  onOpen: (path: string) => void;
+  depth: number;
+}) {
+  const [open, setOpen] = useState(depth < 2);
+  return (
+    <div>
+      <button
+        type="button"
+        className="file-row dir"
+        style={{ paddingLeft: 12 + depth * 13 }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="ftype dir">{open ? "▾" : "▸"}</span>
+        <span className="fname">{node.name}</span>
+        {node.gitStatus && <span className={`gst ${node.gitStatus}`}>{node.gitStatus}</span>}
+      </button>
+      {open && node.children && node.children.length > 0 && (
+        <FileTree nodes={node.children} active={active} onOpen={onOpen} depth={depth + 1} />
+      )}
+    </div>
+  );
+}
+
+function FileRow({
+  node,
+  active,
+  onOpen,
+  depth,
+}: {
+  node: FsNode;
+  active?: string | null;
+  onOpen: (path: string) => void;
+  depth: number;
+}) {
+  const icon = iconForPath(node.name);
+  return (
+    <button
+      type="button"
+      className={`file-row ${active === node.path ? "active" : ""}`}
+      style={{ paddingLeft: 12 + depth * 13 }}
+      onClick={() => onOpen(node.path)}
+      title={node.path}
+    >
+      <span className={`ftype ${icon.replace(/[^a-z]/gi, "") || "plain"}`}>{icon}</span>
+      <span className="fname">{node.name}</span>
+      {node.gitStatus && <span className={`gst ${node.gitStatus}`}>{node.gitStatus}</span>}
+    </button>
+  );
 }

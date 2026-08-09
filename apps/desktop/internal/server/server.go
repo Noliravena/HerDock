@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -12,11 +15,91 @@ import (
 	"github.com/vantiboolean/her-dock/apps/desktop/internal/policy"
 )
 
+// Options configures optional server features such as serving the built UI.
+type Options struct {
+	// UIDir, when set to an existing directory, serves the built workbench UI
+	// at "/" so the desktop app renders the same interface as the web app.
+	UIDir string
+}
+
 func ListenAndServe(addr string, h *host.Host) error {
+	return ListenAndServeWithOptions(addr, h, Options{})
+}
+
+func ListenAndServeWithOptions(addr string, h *host.Host, opts Options) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "service": "her-dock-host", "ts": time.Now().UTC()})
+	})
+
+	mux.HandleFunc("/v1/platform", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, h.Platform())
+	})
+
+	mux.HandleFunc("/v1/skills", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, h.ListSkills(r.URL.Query().Get("workspaceId")))
+	})
+
+	mux.HandleFunc("/v1/queue", func(w http.ResponseWriter, r *http.Request) {
+		list, err := h.RunQueue()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, list)
+	})
+
+	mux.HandleFunc("/v1/usage", func(w http.ResponseWriter, r *http.Request) {
+		rep, err := h.Usage(r.URL.Query().Get("runId"))
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, rep)
+	})
+
+	mux.HandleFunc("/v1/schedules", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			list, err := h.ListSchedules(r.URL.Query().Get("workspaceId"))
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			writeJSON(w, list)
+		case http.MethodPost:
+			var body host.SaveScheduleReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			sc, err := h.SaveSchedule(body)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			writeJSON(w, sc)
+		default:
+			http.Error(w, "method not allowed", 405)
+		}
+	})
+
+	mux.HandleFunc("/v1/schedules/", func(w http.ResponseWriter, r *http.Request) {
+		parts := splitPath(r.URL.Path[len("/v1/schedules/"):])
+		if len(parts) != 1 {
+			http.Error(w, "not found", 404)
+			return
+		}
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+		if err := h.DeleteSchedule(parts[0]); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
 	})
 
 	mux.HandleFunc("/v1/providers", func(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +245,21 @@ func ListenAndServe(addr string, h *host.Host) error {
 				return
 			}
 			writeJSON(w, map[string]any{"summary": s, "diskWins": true})
+		case "file-diff":
+			rel := r.URL.Query().Get("path")
+			diff, err := h.FileDiff(id, rel)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			writeJSON(w, map[string]any{"path": rel, "diff": diff})
+		case "context":
+			ctx, err := h.GetWorkspaceContext(id)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			writeJSON(w, ctx)
 		case "shell":
 			var body struct {
 				Command string `json:"command"`
@@ -258,6 +356,27 @@ func ListenAndServe(addr string, h *host.Host) error {
 				return
 			}
 			writeJSON(w, map[string]any{"ok": true})
+		case "usage":
+			rep, err := h.Usage(id)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			writeJSON(w, rep)
+		case "decision":
+			var body struct {
+				OptionID string `json:"optionId"`
+				FreeText string `json:"freeText"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			if err := h.ResolveDecision(id, body.OptionID, body.FreeText); err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			writeJSON(w, map[string]any{"ok": true})
 		case "continue":
 			var body host.ContinueRunReq
 			body.RunID = id
@@ -328,8 +447,29 @@ func ListenAndServe(addr string, h *host.Host) error {
 		}
 	})
 
+	if opts.UIDir != "" {
+		if info, err := os.Stat(opts.UIDir); err == nil && info.IsDir() {
+			mux.Handle("/", spaHandler(opts.UIDir))
+		}
+	}
+
 	handler := withCORS(mux)
 	return http.ListenAndServe(addr, handler)
+}
+
+// spaHandler serves the built workbench UI, falling back to index.html so the
+// desktop shell can deep-link into any view.
+func spaHandler(dir string) http.Handler {
+	files := http.FileServer(http.Dir(dir))
+	index := filepath.Join(dir, "index.html")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clean := filepath.Join(dir, filepath.FromSlash(path.Clean("/"+r.URL.Path)))
+		if info, err := os.Stat(clean); err == nil && !info.IsDir() {
+			files.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, index)
+	})
 }
 
 func withCORS(next http.Handler) http.Handler {

@@ -628,6 +628,26 @@ func (h *Host) HumanDiffSummary(workspaceID string) (string, error) {
 	return cmdOut, nil
 }
 
+// FileDiff returns the unified diff of one workspace file against HEAD, so the
+// 差异 view can show real hunks when the provider did not supply them.
+func (h *Host) FileDiff(workspaceID, rel string) (string, error) {
+	w, err := h.store.GetWorkspace(workspaceID)
+	if err != nil || w == nil {
+		return "", fmt.Errorf("workspace not found")
+	}
+	if _, _, err := fsutil.EnsureInside(w.RootPath, rel); err != nil {
+		return "", err
+	}
+	out, err := readCommand(w.RootPath, "git", "diff", "HEAD", "--", rel)
+	if err != nil {
+		return "", nil
+	}
+	if len(out) > 20000 {
+		out = out[:20000] + "\n…(truncated)"
+	}
+	return out, nil
+}
+
 func runGitDiff(root string) (string, error) {
 	// local import cycle free
 	return readCommand(root, "git", "diff", "HEAD")
