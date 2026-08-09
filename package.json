@@ -1,0 +1,28 @@
+{
+  "name": "her-dock",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "build:host": "go build -C apps/desktop -o ../../artifacts/her-dock-host.exe .",
+    "dev": "turbo run dev",
+    "dev:web": "pnpm --filter @her-dock/web dev",
+    "dev:host": "go run -C apps/desktop . -addr 127.0.0.1:17890",
+    "dev:all": "pnpm dev:host",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:policy": "pnpm --filter @her-dock/policy typecheck",
+    "clean": "turbo run clean && rimraf node_modules"
+  },
+  "description": "行知 Agent 工作台 monorepo — 本地 CLI Provider + Desktop Host + Workbench UI",
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "turbo": "2.10.9",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=10.26.1"
+  },
+  "packageManager": "pnpm@10.26.1"
+}
