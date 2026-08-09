@@ -1,0 +1,13 @@
+version: 1
+name: sample-workspace
+defaultProvider: codex
+defaultKind: mixed
+autoExecute: ask_risky
+rules:
+  - rules/**/*.md
+analysis:
+  dataGlobs:
+    - data/**/*
+  outputDir: out
+coding:
+  testCommand: echo "no tests"
