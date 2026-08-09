@@ -1,7 +1,25 @@
 const DEFAULT_BASE = "http://127.0.0.1:17890";
+/** Vite dev server port; anything else served over http is assumed to be the host itself. */
+const DEV_PORTS = new Set(["5173", "4173"]);
 
 export function hostBase(): string {
-  return (import.meta.env.VITE_HOST_URL as string) || DEFAULT_BASE;
+  const configured = import.meta.env.VITE_HOST_URL as string | undefined;
+  if (configured) return configured;
+  if (typeof window !== "undefined" && window.location.protocol.startsWith("http")) {
+    // Desktop shell serves the bundle from the host itself — talk to the same origin.
+    if (!DEV_PORTS.has(window.location.port)) return window.location.origin;
+  }
+  return DEFAULT_BASE;
+}
+
+/**
+ * True when the page itself is served by the host process — i.e. the desktop
+ * shell. A browser tab pointed at the dev server talks to the host over CORS
+ * and must keep the web chrome even though the host runs on a desktop OS.
+ */
+export function servedByHost(): boolean {
+  if (typeof window === "undefined") return false;
+  return hostBase() === window.location.origin;
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -45,6 +63,11 @@ export type Run = {
   prompt: string;
   planProgress?: string;
   errorMessage?: string;
+  tokenUsage?: { input?: number; output?: number; total?: number; credits?: number };
+  createdAt?: string;
+  updatedAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
 };
 
 export type ProviderHealth = {
@@ -82,11 +105,117 @@ export type Connector = {
   detail?: string;
 };
 
+/** Platform chrome descriptor: browser bar, macOS traffic lights or Windows caption. */
+export type PlatformInfo = {
+  os: string;
+  arch: string;
+  desktop: boolean;
+  chrome: "web" | "mac" | "win";
+  homeDir?: string;
+  dataDir: string;
+  pathSeparator: string;
+  modifierKey: string;
+  commandHint: string;
+  newHint: string;
+  submitHint: string;
+  defaultShell: string;
+  windowControl: string;
+};
+
+export type Skill = {
+  id: string;
+  glyph: string;
+  name: string;
+  status: "enabled" | "readonly" | "limited" | "disabled";
+  detail: string;
+};
+
+export type Schedule = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  cron: string;
+  prompt?: string;
+  providerId?: string;
+  enabled: boolean;
+  nextRunAt?: string;
+  lastRunAt?: string;
+};
+
+export type WorkspaceContext = {
+  files: { path: string; kind: "rule" | "data" | "code" | "config"; size: string }[];
+  rules: string[];
+  outputDir: string;
+  testCommand?: string;
+  autoExecute?: string;
+};
+
+export type UsageBucket = {
+  key: string;
+  label: string;
+  tokens: number;
+  runs: number;
+  calls: number;
+  limit?: number;
+};
+
+export type UsageReport = {
+  buckets: UsageBucket[];
+  credits: number;
+  context: { used: number; limit: number };
+};
+
+export type QueueItem = {
+  runId: string;
+  name: string;
+  workspaceId: string;
+  status: string;
+  meta: string;
+};
+
+export type Artifact = {
+  id: string;
+  path: string;
+  name: string;
+  ext: string;
+  sizeBytes?: number;
+  createdAt?: string;
+};
+
 export const hostApi = {
   health: () => req<{ ok: boolean }>("/health"),
+  platform: () => req<PlatformInfo>("/v1/platform"),
   providers: () => req<ProviderHealth[]>("/v1/providers"),
   policy: () => req<PolicyBundle>("/v1/policy"),
   connectors: () => req<Connector[]>("/v1/connectors"),
+  skills: (workspaceId?: string) =>
+    req<Skill[]>(`/v1/skills${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
+  queue: () => req<QueueItem[]>("/v1/queue"),
+  usage: (runId?: string) => req<UsageReport>(`/v1/usage${runId ? `?runId=${runId}` : ""}`),
+  schedules: (workspaceId?: string) =>
+    req<Schedule[]>(`/v1/schedules${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
+  saveSchedule: (body: {
+    id?: string;
+    workspaceId: string;
+    name?: string;
+    cron?: string;
+    prompt?: string;
+    providerId?: string;
+    enabled?: boolean;
+  }) => req<Schedule>("/v1/schedules", { method: "POST", body: JSON.stringify(body) }),
+  deleteSchedule: (id: string) =>
+    req<{ ok: boolean }>(`/v1/schedules/${id}`, { method: "DELETE" }),
+  workspaceContext: (id: string) =>
+    req<WorkspaceContext>(`/v1/workspaces/${id}/context`),
+  fileDiff: (id: string, path: string) =>
+    req<{ path: string; diff: string }>(
+      `/v1/workspaces/${id}/file-diff?path=${encodeURIComponent(path)}`,
+    ),
+  resolveDecision: (runId: string, optionId: string, freeText?: string) =>
+    req<{ ok: boolean }>(`/v1/runs/${runId}/decision`, {
+      method: "POST",
+      body: JSON.stringify({ optionId, freeText }),
+    }),
   listWorkspaces: () => req<Workspace[]>("/v1/workspaces"),
   openWorkspace: (path: string) =>
     req<Workspace>("/v1/workspaces", {
@@ -113,16 +242,7 @@ export const hostApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  listArtifacts: (id: string) =>
-    req<
-      {
-        id: string;
-        path: string;
-        name: string;
-        ext: string;
-        sizeBytes?: number;
-      }[]
-    >(`/v1/workspaces/${id}/artifacts`),
+  listArtifacts: (id: string) => req<Artifact[]>(`/v1/workspaces/${id}/artifacts`),
   diffSummary: (id: string) =>
     req<{ summary: string; diskWins: boolean }>(
       `/v1/workspaces/${id}/diff-summary`,
