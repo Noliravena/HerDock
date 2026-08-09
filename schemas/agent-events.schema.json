@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://her-dock.local/schemas/agent-events.schema.json",
+  "title": "HerDock AgentEvent",
+  "description": "Normalized agent runtime events consumed by Workbench UI.",
+  "type": "object",
+  "required": ["id", "runId", "type", "ts", "seq"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "type": {
+      "type": "string",
+      "enum": [
+        "message.user",
+        "message.assistant",
+        "plan.updated",
+        "shell.start",
+        "shell.output",
+        "shell.exit",
+        "file.edit_proposed",
+        "file.edit_applied",
+        "approval.requested",
+        "approval.resolved",
+        "artifact.created",
+        "checkpoint.created",
+        "run.status",
+        "usage.tokens",
+        "table.result",
+        "human.decision",
+        "error"
+      ]
+    },
+    "ts": { "type": "string", "format": "date-time" },
+    "seq": { "type": "integer", "minimum": 0 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "type": { "const": "plan.updated" } }
+      },
+      "then": {
+        "required": ["steps"],
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "title", "state"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "state": {
+                  "type": "string",
+                  "enum": ["pending", "running", "done", "failed", "skipped"]
+                },
+                "durationMs": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "shell.exit" } }
+      },
+      "then": {
+        "required": ["exitCode"],
+        "properties": {
+          "exitCode": { "type": "integer" },
+          "durationMs": { "type": "number" }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}
