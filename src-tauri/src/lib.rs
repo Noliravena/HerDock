@@ -13,7 +13,7 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-use commands::{app, browser, integrations, runs, terminal, updater, workspace};
+use commands::{app, browser, design, integrations, runs, terminal, updater, workspace};
 use domain::models::{Session, StartRunRequest};
 use infra::database::Database;
 use services::{agent, mcp, scheduler, state::AppState};
@@ -134,6 +134,9 @@ pub fn run() {
             workspace::artifact_list,
             workspace::artifact_reveal,
             workspace::artifact_export,
+            design::artifact_preview,
+            design::design_system_list,
+            design::design_system_read,
             workspace::checkpoint_restore,
             workspace::checkpoint_preview,
             runs::session_list,

@@ -1,5 +1,6 @@
 pub mod app;
 pub mod browser;
+pub mod design;
 pub mod error;
 pub mod integrations;
 pub mod runs;

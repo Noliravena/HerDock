@@ -2,6 +2,7 @@ pub mod agent;
 pub mod browser;
 pub mod checkpoints;
 pub mod context;
+pub mod design;
 pub mod grok;
 pub mod mcp;
 pub mod policy;
