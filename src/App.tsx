@@ -100,6 +100,11 @@ export function App() {
       } else if (key === "n") {
         e.preventDefault();
         void useWorkbench.getState().newSession();
+      } else if (key === "o") {
+        e.preventDefault();
+        void open({ directory: true, multiple: false, title: "打开本地工作区" }).then((path) => {
+          if (typeof path === "string") void useWorkbench.getState().openWorkspacePath(path);
+        });
       } else if (e.key === "Enter") {
         e.preventDefault();
         void useWorkbench.getState().sendPrompt();
@@ -398,13 +403,20 @@ function ChatHeader() {
     started && !Number.isNaN(started.getTime())
       ? started.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
       : "—";
+  const statusLabel = run ? RUN_STATUS_LABELS[run.status as RunStatus] || run.status : "尚未运行";
 
   return (
     <div className="chat-head">
-      <div style={{ minWidth: 0 }}>
-        <div className="chat-title">{session?.title || "新会话"}</div>
+      <div className="head-id">
+        <div className="chat-title-row">
+          <span className="chat-title">{session?.title || "新会话"}</span>
+          <span className={`status-chip ${run?.status || "idle"}`}>{statusLabel}</span>
+        </div>
         <div className="chat-meta">
-          {run?.id || "—"} · {workspace?.name || "—"} · 开始于 {startedLabel} · {providerId}
+          <span>{run?.id || "未开始"}</span>
+          <span>{workspace?.name || "未打开工作区"}</span>
+          <span>开始于 {startedLabel}</span>
+          <span>{providerId}</span>
         </div>
       </div>
       <div className="head-actions">

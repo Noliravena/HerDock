@@ -12,8 +12,8 @@ import type {
   ToolOutputEvent,
   ToolRequestedEvent,
 } from "@her-dock/agent-protocol";
-import { Check, CircleNotch } from "@phosphor-icons/react";
-import { memo, useMemo, useState } from "react";
+import { Check, CircleNotch, Copy } from "@phosphor-icons/react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useWorkbench } from "../store/workbench";
 import { IconChevronRight } from "./Icons";
@@ -189,6 +189,15 @@ export function Thread({
   const turns = useMemo(() => buildTurns(events), [events]);
   const relatedRuns = runs.filter((item) => item.id !== run?.id).slice(0, 3);
 
+  useEffect(() => {
+    if (!checkpointPreview) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") useWorkbench.setState({ checkpointPreview: null });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [checkpointPreview]);
+
   if (!turns.length && !run) {
     return (
       <div className="thread">
@@ -240,7 +249,11 @@ export function Thread({
         <section className="card">
           <header>
             <span className="card-tag">RELATED RUNS</span>
-            <button type="button" className="card-link" onClick={() => setCenterView("activity")}>
+            <button
+              type="button"
+              className="card-link push"
+              onClick={() => setCenterView("activity")}
+            >
               查看全部
             </button>
           </header>
@@ -453,7 +466,7 @@ const BlockView = memo(function BlockView({
         <section className="card">
           <header>
             <span className="card-tag">CHECKPOINTS</span>
-            <span className="card-meta right">{block.items.length}</span>
+            <span className="card-meta right">{block.items.length} 个还原点</span>
           </header>
           {block.items.map((c, i) => (
             <div className={`cp-row ${i === block.items.length - 1 ? "latest" : ""}`} key={c.id}>
@@ -463,10 +476,10 @@ const BlockView = memo(function BlockView({
               <span className="cp-time">{timeOf(c.ts)}</span>
               <button
                 type="button"
-                className="ghost-btn"
+                className="card-link"
                 onClick={() => void previewCheckpoint(c.checkpointId)}
               >
-                预览
+                回滚到此
               </button>
             </div>
           ))}
@@ -548,14 +561,20 @@ function TerminalCard({ block }: { block: TerminalBlock }) {
       <header>
         <span className="card-tag">TERMINAL</span>
         <span className="card-meta">{block.command}</span>
-        {block.exit && (
-          <span className={`card-meta right ${block.exit.exitCode === 0 ? "ok" : "bad"}`}>
-            exit {block.exit.exitCode}
-            {block.exit.durationMs != null
-              ? ` · ${(block.exit.durationMs / 1000).toFixed(1)}s`
-              : ""}
-          </span>
-        )}
+        <span className="card-head-end">
+          {block.exit && (
+            <span className={`card-meta ${block.exit.exitCode === 0 ? "ok" : "bad"}`}>
+              exit {block.exit.exitCode}
+              {block.exit.durationMs != null
+                ? ` · ${(block.exit.durationMs / 1000).toFixed(1)}s`
+                : ""}
+            </span>
+          )}
+          <CopyButton
+            title="复制终端输出"
+            text={[`$ ${block.command}`, ...block.lines.map((line) => line.text)].join("\n")}
+          />
+        </span>
       </header>
       <pre className="term-out">
         <div className="cmd">$ {block.command}</div>
@@ -585,10 +604,13 @@ function ToolCard({ block }: { block: Extract<Block, { kind: "tool" }> }) {
       <header>
         <span className="card-tag">TOOL</span>
         <span className="card-meta">{block.request.name}</span>
-        <span
-          className={`card-meta right ${block.output?.failed ? "bad" : block.output ? "ok" : "warn"}`}
-        >
-          {block.output ? (block.output.failed ? "失败" : "完成") : "执行中"}
+        <span className="card-head-end">
+          <span
+            className={`card-meta ${block.output?.failed ? "bad" : block.output ? "ok" : "warn"}`}
+          >
+            {block.output ? (block.output.failed ? "失败" : "完成") : "执行中"}
+          </span>
+          {block.output && <CopyButton title="复制工具输出" text={block.output.output} />}
         </span>
       </header>
       <ExpandablePre className="tool-args" text={args} />
@@ -655,6 +677,30 @@ function TableCard({ event }: { event: TableResultEvent }) {
         />
       )}
     </section>
+  );
+}
+
+/** Copy-to-clipboard affordance that confirms in place rather than via a toast. */
+function CopyButton({ text, title }: { text: string; title: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className={`copy-btn ${copied ? "done" : ""}`}
+      title={title}
+      aria-label={title}
+      onClick={() => {
+        void navigator.clipboard
+          ?.writeText(text)
+          .then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1400);
+          })
+          .catch(() => undefined);
+      }}
+    >
+      {copied ? <Check size={11} weight="bold" /> : <Copy size={11} />}
+    </button>
   );
 }
 
