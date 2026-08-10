@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./src/assets/herdock-mark.svg" width="88" height="88" alt="HerDock logo" />
+</p>
+
 # HerDock · 行知
 
 HerDock 是一个本地优先、开源的桌面 Agent Development Environment（ADE）。应用只提供 Windows 与 macOS 桌面版本，不包含账号、组织、额度、分享、云同步、远程执行或 HerDock Cloud。
