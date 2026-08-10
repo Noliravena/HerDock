@@ -351,6 +351,11 @@ button {
   gap: 9px;
   border-bottom: 1px solid var(--line-soft);
 }
+/* Windows puts the mark and product name in the caption bar, so the sidebar
+   header shrinks to just the menu affordance. */
+.brand.menu-only {
+  padding: 6px 8px;
+}
 .brand .logo {
   width: 26px;
   height: 26px;
@@ -383,6 +388,32 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Sidebar menu: the Popover trigger has to read as an icon button here, not as
+   the pill used in the composer toolbar. */
+.sidebar-menu.push {
+  margin-left: auto;
+}
+.sidebar-menu > .popover-trigger {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--r-4);
+  color: var(--muted);
+}
+.sidebar-menu > .popover-trigger:hover,
+.sidebar-menu.open > .popover-trigger {
+  background: var(--hover-panel);
+  border-color: transparent;
+  color: var(--ink-strong);
+}
+.sidebar-menu > .popover-trigger svg {
+  color: inherit;
+}
+.sidebar-menu .popover-panel {
+  width: 244px;
 }
 
 .icon-btn {
@@ -1837,6 +1868,49 @@ button {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.6;
+}
+
+/* Menu rows: icon, label, trailing shortcut. */
+.pop-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border: none;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink-body);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.pop-item:hover {
+  background: var(--hover-chip);
+  color: var(--ink);
+}
+.pop-item > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.pop-item:hover > svg {
+  color: var(--accent);
+}
+.pop-item > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pop-item > kbd {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--faint);
+}
+.pop-section:has(.pop-item) {
+  padding: 4px 0;
 }
 
 /* --------------------------------------------------------------- thread -- */

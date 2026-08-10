@@ -8,11 +8,15 @@ import {
   IconCompose,
   IconConnector,
   IconFile,
+  IconFolderOpen,
   IconGear,
+  IconMenu,
+  IconPanelRight,
   IconPlus,
   IconSearch,
   IconSkills,
 } from "./Icons";
+import { Popover } from "./Popover";
 
 const GROUP_LABEL: Record<GroupMode, string> = {
   time: "按时间",
@@ -71,7 +75,9 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       setSideTab: s.setSideTab,
       sideTab: s.sideTab,
       skills: s.skills,
+      rightOpen: s.rightOpen,
       togglePalette: s.togglePalette,
+      toggleRight: s.toggleRight,
       toggleWorkspaceCollapsed: s.toggleWorkspaceCollapsed,
       workspace: s.workspace,
       workspaces: s.workspaces,
@@ -86,6 +92,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   const pendingApprovals = state.approvals.length;
   const liveRuns = state.queue.length;
   const readyProviders = state.providers.filter((provider) => provider.available).length;
+  const brandInTitleBar = state.platform.windowControl === "windows";
 
   const knownRuns = state.allRuns.length ? state.allRuns : state.runs;
   const sortSessions = (list: Session[]): Session[] => {
@@ -114,20 +121,109 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
         </div>
       )}
 
-      <header className="brand">
-        <span className="logo">行</span>
-        <span className="brand-text">
-          <span className="brand-title">HerDock</span>
-          <span className="brand-sub">行知 · 本地工作台</span>
-        </span>
-        <button
-          type="button"
-          className="icon-btn push"
-          title={`搜索 / 命令面板 ${state.platform.commandHint}`}
-          onClick={state.togglePalette}
+      {/* The Windows caption bar already carries the mark and product name, so the
+          sidebar only needs the menu there. */}
+      <header className={`brand ${brandInTitleBar ? "menu-only" : ""}`}>
+        {!brandInTitleBar && (
+          <>
+            <span className="logo">行</span>
+            <span className="brand-text">
+              <span className="brand-title">HerDock</span>
+              <span className="brand-sub">行知 · 本地工作台</span>
+            </span>
+          </>
+        )}
+        <Popover
+          className={`sidebar-menu ${brandInTitleBar ? "" : "push"}`}
+          side="bottom"
+          align={brandInTitleBar ? "start" : "end"}
+          title="菜单"
+          label={<IconMenu />}
         >
-          <IconSearch />
-        </button>
+          {(close) => (
+            <div className="pop-scroll">
+              <div className="pop-section">
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    state.togglePalette();
+                  }}
+                >
+                  <IconSearch />
+                  <span>搜索 / 命令面板</span>
+                  <kbd>{state.platform.commandHint}</kbd>
+                </button>
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    void state.newSession();
+                  }}
+                >
+                  <IconCompose />
+                  <span>新建会话</span>
+                  <kbd>{state.platform.newHint}</kbd>
+                </button>
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    onOpenWorkspace();
+                  }}
+                >
+                  <IconFolderOpen />
+                  <span>打开工作区文件夹…</span>
+                  <kbd>{state.platform.modifierKey} O</kbd>
+                </button>
+              </div>
+
+              <div className="pop-section">
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    state.setCenterView("activity");
+                  }}
+                >
+                  <IconActivity />
+                  <span>活动</span>
+                  {liveRuns > 0 && <kbd>{liveRuns}</kbd>}
+                </button>
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    state.toggleRight();
+                  }}
+                >
+                  <IconPanelRight />
+                  <span>{state.rightOpen ? "隐藏右侧栏" : "显示右侧栏"}</span>
+                </button>
+              </div>
+
+              <div className="pop-section">
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    state.setSettingsOpen(true);
+                  }}
+                >
+                  <IconGear />
+                  <span>设置</span>
+                  <kbd>{state.platform.modifierKey} ,</kbd>
+                </button>
+              </div>
+            </div>
+          )}
+        </Popover>
       </header>
 
       <nav className="nav-group">

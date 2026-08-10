@@ -100,6 +100,11 @@ export function App() {
       } else if (key === "n") {
         e.preventDefault();
         void useWorkbench.getState().newSession();
+      } else if (key === "o") {
+        e.preventDefault();
+        void open({ directory: true, multiple: false, title: "打开本地工作区" }).then((path) => {
+          if (typeof path === "string") void useWorkbench.getState().openWorkspacePath(path);
+        });
       } else if (e.key === "Enter") {
         e.preventDefault();
         void useWorkbench.getState().sendPrompt();

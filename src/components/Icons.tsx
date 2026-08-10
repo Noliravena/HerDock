@@ -4,7 +4,9 @@ import {
   CaretRight,
   DotsThree,
   File,
+  FolderOpen,
   GearSix,
+  List,
   MagnifyingGlass,
   Minus,
   NotePencil,
@@ -22,6 +24,12 @@ const defaults = { weight: "regular" as const, "aria-hidden": true };
 
 export function IconSearch({ size = 14, className }: IconProps) {
   return <MagnifyingGlass {...defaults} size={size} className={className} />;
+}
+export function IconMenu({ size = 15, className }: IconProps) {
+  return <List {...defaults} size={size} className={className} />;
+}
+export function IconFolderOpen({ size = 14, className }: IconProps) {
+  return <FolderOpen {...defaults} size={size} className={className} />;
 }
 export function IconCompose({ size = 16, className }: IconProps) {
   return <NotePencil {...defaults} size={size} className={className} />;
