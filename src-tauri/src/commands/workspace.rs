@@ -228,9 +228,15 @@ pub async fn artifact_list(
     state: State<'_, AppState>,
 ) -> CommandResult<Vec<Artifact>> {
     let root = root_for(&state, &workspace_id).await?;
-    let artifacts =
+    let mut artifacts =
         workspace::scan_artifacts(Path::new(&root), &workspace_id, None).map_err(err)?;
     let db = state.db.lock().await;
+    let existing = db.list_artifacts(&workspace_id).map_err(err)?;
+    for artifact in &mut artifacts {
+        if let Some(previous) = existing.iter().find(|item| item.id == artifact.id) {
+            artifact.run_id.clone_from(&previous.run_id);
+        }
+    }
     db.replace_artifacts(&workspace_id, &artifacts)
         .map_err(err)?;
     db.list_artifacts(&workspace_id).map_err(err)

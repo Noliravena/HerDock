@@ -8,6 +8,9 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use ignore::WalkBuilder;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 use crate::domain::models::{
     Artifact, ContextFile, FileRead, FsNode, SearchResult, WorkspaceContext,
@@ -22,6 +25,20 @@ const IGNORED_DIRS: &[&str] = &[
     ".idea",
     ".vscode",
 ];
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesignArtifactManifest {
+    schema_version: String,
+    id: String,
+    title: String,
+    kind: String,
+    renderer: String,
+    entry: String,
+    exports: Vec<String>,
+    status: Option<String>,
+    created_at: Option<String>,
+}
 
 pub fn canonical_workspace(path: &str) -> Result<PathBuf> {
     let root = PathBuf::from(path)
@@ -348,6 +365,26 @@ pub fn scan_artifacts(
         return Ok(vec![]);
     }
     let mut artifacts = Vec::new();
+    let mut package_dirs = Vec::new();
+
+    for entry in WalkBuilder::new(&out_dir)
+        .max_depth(Some(8))
+        .build()
+        .filter_map(Result::ok)
+    {
+        if !entry.file_type().is_some_and(|kind| kind.is_file())
+            || entry.file_name() != OsStr::new("artifact.json")
+        {
+            continue;
+        }
+        if let Some(artifact) = design_artifact(root, workspace_id, run_id, entry.path())? {
+            if let Some(parent) = entry.path().parent() {
+                package_dirs.push(parent.to_path_buf());
+            }
+            artifacts.push(artifact);
+        }
+    }
+
     for entry in WalkBuilder::new(&out_dir)
         .max_depth(Some(4))
         .build()
@@ -356,13 +393,16 @@ pub fn scan_artifacts(
         if !entry.file_type().is_some_and(|kind| kind.is_file()) {
             continue;
         }
+        if package_dirs.iter().any(|dir| entry.path().starts_with(dir)) {
+            continue;
+        }
         let relative = slash(entry.path().strip_prefix(root)?.to_string_lossy());
         let name = entry.file_name().to_string_lossy().to_string();
         artifacts.push(Artifact {
-            id: format!("artifact_{}", uuid::Uuid::new_v4().simple()),
+            id: stable_artifact_id(workspace_id, &relative),
             run_id: run_id.map(str::to_string),
             workspace_id: workspace_id.into(),
-            path: relative,
+            path: relative.clone(),
             ext: entry
                 .path()
                 .extension()
@@ -373,10 +413,126 @@ pub fn scan_artifacts(
                 .ok()
                 .map(|meta| meta.len() as i64),
             name,
+            kind: "file".into(),
+            renderer: None,
+            entry_path: Some(relative),
+            status: "complete".into(),
+            manifest: json!({}),
             created_at: chrono::Utc::now().to_rfc3339(),
         });
     }
     Ok(artifacts)
+}
+
+fn design_artifact(
+    root: &Path,
+    workspace_id: &str,
+    run_id: Option<&str>,
+    manifest_path: &Path,
+) -> Result<Option<Artifact>> {
+    let bytes = match fs::read(manifest_path) {
+        Ok(bytes) if bytes.len() <= 64 * 1024 => bytes,
+        _ => return Ok(None),
+    };
+    let value: Value = match serde_json::from_slice(&bytes) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    let manifest: DesignArtifactManifest = match serde_json::from_value(value.clone()) {
+        Ok(manifest) => manifest,
+        Err(_) => return Ok(None),
+    };
+    if manifest.schema_version != "herdock.design-artifact/v1"
+        || !valid_artifact_id(&manifest.id)
+        || manifest.title.trim().is_empty()
+        || manifest.title.len() > 200
+        || !matches!(
+            manifest.kind.as_str(),
+            "html"
+                | "deck"
+                | "react-component"
+                | "markdown-document"
+                | "svg"
+                | "diagram"
+                | "mini-app"
+                | "design-system"
+        )
+        || !matches!(
+            manifest.renderer.as_str(),
+            "html"
+                | "deck-html"
+                | "react-component"
+                | "markdown"
+                | "svg"
+                | "diagram"
+                | "mini-app"
+                | "design-system"
+        )
+        || manifest.exports.is_empty()
+        || manifest.exports.iter().any(|value| {
+            !matches!(
+                value.as_str(),
+                "html" | "pdf" | "zip" | "jsx" | "md" | "svg" | "txt"
+            )
+        })
+    {
+        return Ok(None);
+    }
+    let package_dir = manifest_path
+        .parent()
+        .ok_or_else(|| anyhow!("artifact manifest has no parent"))?;
+    let entry_rel = safe_relative(&manifest.entry)?;
+    let entry = package_dir.join(entry_rel);
+    let entry = match entry.canonicalize() {
+        Ok(path) if path.is_file() => path,
+        _ => return Ok(None),
+    };
+    let package_dir = package_dir.canonicalize()?;
+    let root = root.canonicalize()?;
+    if !entry.starts_with(&package_dir) || !package_dir.starts_with(root.join("out")) {
+        return Ok(None);
+    }
+    let relative = slash(entry.strip_prefix(&root)?.to_string_lossy());
+    let ext = entry
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or("")
+        .to_lowercase();
+    let status = manifest.status.unwrap_or_else(|| "complete".into());
+    if !matches!(status.as_str(), "streaming" | "complete" | "error") {
+        return Ok(None);
+    }
+    Ok(Some(Artifact {
+        id: stable_artifact_id(workspace_id, &manifest.id),
+        run_id: run_id.map(str::to_string),
+        workspace_id: workspace_id.into(),
+        path: relative.clone(),
+        name: manifest.title,
+        ext,
+        size_bytes: fs::metadata(&entry).ok().map(|meta| meta.len() as i64),
+        kind: manifest.kind,
+        renderer: Some(manifest.renderer),
+        entry_path: Some(relative),
+        status,
+        manifest: value,
+        created_at: manifest
+            .created_at
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+    }))
+}
+
+fn stable_artifact_id(workspace_id: &str, seed: &str) -> String {
+    let digest = Sha256::digest(format!("{workspace_id}:{seed}").as_bytes());
+    format!("artifact_{:x}", digest)[..25].to_string()
+}
+
+fn valid_artifact_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
 fn command_output(root: &Path, program: &str, args: &[&str]) -> Option<String> {
@@ -464,5 +620,26 @@ mod tests {
             fs::read_to_string(dir.path().join("src/test.txt")).unwrap(),
             "ok"
         );
+    }
+
+    #[test]
+    fn groups_manifest_design_as_one_stable_artifact() {
+        let dir = tempfile::tempdir().unwrap();
+        let package = dir.path().join("out/design/demo");
+        fs::create_dir_all(package.join("assets")).unwrap();
+        fs::write(package.join("index.html"), "<h1>demo</h1>").unwrap();
+        fs::write(package.join("assets/app.css"), "body {}").unwrap();
+        fs::write(
+            package.join("artifact.json"),
+            r#"{"schemaVersion":"herdock.design-artifact/v1","id":"demo","title":"Demo","kind":"html","renderer":"html","entry":"index.html","exports":["html","zip"],"status":"complete"}"#,
+        )
+        .unwrap();
+
+        let first = scan_artifacts(dir.path(), "workspace", Some("run_1")).unwrap();
+        let second = scan_artifacts(dir.path(), "workspace", None).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].name, "Demo");
+        assert_eq!(first[0].kind, "html");
+        assert_eq!(first[0].id, second[0].id);
     }
 }

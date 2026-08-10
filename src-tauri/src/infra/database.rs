@@ -59,6 +59,11 @@ impl Database {
             "0007_query_indexes",
             include_str!("../../migrations/0007_query_indexes.sql"),
         )?;
+        apply_migration(
+            &mut conn,
+            "0008_design_artifacts",
+            include_str!("../../migrations/0008_design_artifacts.sql"),
+        )?;
         conn.execute(
             "UPDATE runs SET status='interrupted', updated_at=?1, finished_at=?1 WHERE status IN ('queued','starting','running','waiting_approval','paused')",
             [now()],
@@ -507,8 +512,9 @@ impl Database {
     }
 
     pub fn list_artifacts(&self, workspace_id: &str) -> Result<Vec<Artifact>> {
-        let mut stmt = self.conn.prepare("SELECT id,run_id,workspace_id,path,name,ext,size_bytes,created_at FROM artifacts WHERE workspace_id=?1 ORDER BY created_at DESC")?;
+        let mut stmt = self.conn.prepare("SELECT id,run_id,workspace_id,path,name,ext,size_bytes,kind,renderer,entry_path,status,manifest_json,created_at FROM artifacts WHERE workspace_id=?1 ORDER BY created_at DESC")?;
         let rows = stmt.query_map([workspace_id], |row| {
+            let manifest: String = row.get(11)?;
             Ok(Artifact {
                 id: row.get(0)?,
                 run_id: row.get(1)?,
@@ -517,7 +523,12 @@ impl Database {
                 name: row.get(4)?,
                 ext: row.get(5)?,
                 size_bytes: row.get(6)?,
-                created_at: row.get(7)?,
+                kind: row.get(7)?,
+                renderer: row.get(8)?,
+                entry_path: row.get(9)?,
+                status: row.get(10)?,
+                manifest: serde_json::from_str(&manifest).unwrap_or(json!({})),
+                created_at: row.get(12)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
@@ -530,8 +541,8 @@ impl Database {
         )?;
         for artifact in artifacts {
             self.conn.execute(
-                "INSERT INTO artifacts(id,run_id,workspace_id,path,name,ext,size_bytes,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
-                params![artifact.id, artifact.run_id, artifact.workspace_id, artifact.path, artifact.name, artifact.ext, artifact.size_bytes, artifact.created_at],
+                "INSERT INTO artifacts(id,run_id,workspace_id,path,name,ext,size_bytes,kind,renderer,entry_path,status,manifest_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+                params![artifact.id, artifact.run_id, artifact.workspace_id, artifact.path, artifact.name, artifact.ext, artifact.size_bytes, artifact.kind, artifact.renderer, artifact.entry_path, artifact.status, artifact.manifest.to_string(), artifact.created_at],
             )?;
         }
         Ok(())

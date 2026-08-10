@@ -255,7 +255,7 @@ async fn run_task(
         db.replace_artifacts(&run.workspace_id, &artifacts)?;
     }
     for artifact in artifacts {
-        emit(&state, &sink, &run.id, "tool_output", json!({"toolCallId":format!("artifact:{}",artifact.id),"name":"artifact","output":artifact.path,"failed":false,"artifact":{"path":artifact.path,"name":artifact.name,"ext":artifact.ext,"sizeBytes":artifact.size_bytes}})).await?;
+        emit(&state, &sink, &run.id, "tool_output", json!({"toolCallId":format!("artifact:{}",artifact.id),"name":"artifact","output":artifact.path,"failed":false,"artifact":{"id":artifact.id,"path":artifact.path,"name":artifact.name,"ext":artifact.ext,"sizeBytes":artifact.size_bytes,"kind":artifact.kind,"renderer":artifact.renderer,"entryPath":artifact.entry_path,"status":artifact.status}})).await?;
     }
     emit(
         &state,

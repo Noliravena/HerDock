@@ -289,7 +289,38 @@ pub struct Artifact {
     pub name: String,
     pub ext: String,
     pub size_bytes: Option<i64>,
+    pub kind: String,
+    pub renderer: Option<String>,
+    pub entry_path: Option<String>,
+    pub status: String,
+    pub manifest: Value,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignSystem {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub description: String,
+    pub scope: String,
+    pub has_tokens: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignSystemContent {
+    pub system: DesignSystem,
+    pub design_markdown: String,
+    pub tokens_css: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactPreview {
+    pub path: String,
+    pub html: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
