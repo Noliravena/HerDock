@@ -1,100 +1,66 @@
-# her-dock · 行知 Agent 工作台
+# HerDock · 行知
 
-本地优先的 **Agent Developer Workbench**（员工版「开发者模式」）。
+HerDock 是一个本地优先、开源的桌面 Agent Development Environment（ADE）。应用只提供 Windows 与 macOS 桌面版本，不包含账号、组织、额度、分享、云同步、远程执行或 HerDock Cloud。
 
-| 能力 | 状态 |
-|------|------|
-| Coding + 数据分析同一工作台 | ✅ UI |
-| 「行知 Agent 工作台」设计稿视觉体系 | ✅ Web + 桌面同一套 UI |
-| 平台外壳差异（浏览器 / macOS / Windows） | ✅ 由 Host `/v1/platform` 驱动 |
-| 桌面本地 shell / 无云端执行 | ✅ Host |
-| Codex / Claude / Grok CLI | ✅ 探测 + 非交互 runner |
-| 人手改文件 + Continue Run（磁盘优先） | ✅ |
-| 组织策略 + 连接器 OAuth 模型 | ✅ 策略门禁 + demo connectors |
-| 技能 / 上下文 / 用量 / 定时任务面板 | ✅ Host 接口 + 右侧栏 |
-| 员工版入口 | ✅ `/developer` |
+## 能力
 
-## 界面（对照设计稿）
+- 三栏工作台：会话、Monaco 编辑器、Git Diff、活动、审批与上下文
+- 动态工作标签：通过 `+` 创建浏览器、Agent、终端、编辑器或活动视图
+- 内置原生浏览器：多标签、地址导航、网页搜索、前进后退、刷新与页面结构读取
+- Browser Use：LLM 可读取页面、搜索、导航、点击和输入，副作用操作进入统一审批
+- 工作区文件树、搜索、新建、重命名、删除、保存与二进制只读提示
+- Rust PTY：Windows ConPTY、macOS PTY、多终端与尺寸同步
+- Agent Run：计划、流式回复、工具调用、审批、检查点、usage、取消与本地历史
+- Provider：Codex CLI、Claude CLI、Grok Build CLI、OpenAI、Anthropic、xAI、自定义 OpenAI-compatible API
+- 本地连接：项目/全局 `SKILL.md` 与 MCP stdio 服务
+- 本地产物、活动、Cron 定时任务、托盘、通知与全局快捷键
 
-| 区域 | 内容 |
-|------|------|
-| 平台外壳 | 网页版地址栏；macOS 交通灯嵌在侧栏顶部；Windows 标题栏 + 最小化/最大化/关闭 |
-| 左侧栏 230px | 品牌 + 搜索、新建会话 / 活动、工作区分组（按时间/状态/名称，可折叠）、技能 / 连接器 / 产物库、用户卡片与 credits |
-| 中央 | 标签栏（会话 / 文件 / 差异 / 活动，可关闭，脏标记）+ 运行胶囊；会话视图为 PLAN / TERMINAL / EDITS / CHECKPOINTS / TABLE / RELATED RUNS / 「需要你决定」卡片流 |
-| 输入区 | 快捷指令 chip、@ 引用文件、自动执行 / 会话类型 / Provider / Demo、圆形发送键 |
-| 右侧栏 322px | 工作区文件树、审批 + 连接器、上下文（已加载文件 / 工作区规则 / 上下文占用）、技能、用量（算力 / 运行环境 / 定时任务 / 产物） |
-| 状态栏 26px | 运行队列弹层、工作区与分支、未采纳差异、本地文件夹（桌面）、tokens、credits |
-| 命令面板 | `⌘K` / `Ctrl K`，跳转（会话 + 文件）与动作两组 |
+## 技术栈
 
-## 快速开始
+`React 19 + TypeScript + Vite + Tauri 2 + Rust + SQLite`
+
+前端只通过 Tauri Commands 和有序 Channel 调用 Rust。前端通信不包含 REST、SSE、CORS 或 localhost 业务服务，项目也不包含 Go sidecar 或 Web 发布入口。
+
+## 开发
+
+要求 Node.js 20.19+、pnpm 10.26+、Rust 1.77.2+，并安装对应平台的 Tauri 系统依赖。
 
 ```powershell
-# 终端 1：本地 Host（:17890）
-pnpm dev:host
-# 或
-.\artifacts\her-dock-host.exe -addr 127.0.0.1:17890
-
-# 终端 2：Workbench UI（:5173）
 pnpm install
-pnpm dev:web
+pnpm desktop
 ```
 
-浏览器打开 <http://127.0.0.1:5173>：
+常用命令：
 
-1. **打开工作区**（例如 `examples/sample-workspace` 绝对路径）
-2. 勾选 **Demo** 可无 API Key 演示 PLAN/TERMINAL/EDITS/TABLE/HITL
-3. 取消 Demo 则调用本机 `codex` / `claude` / `grok`
-4. 在代码 Tab 用 Monaco **人手修改** → **采纳并继续**
-
-桌面形态：先 `pnpm --filter @her-dock/web build`，再启动 Host，直接访问
-<http://127.0.0.1:17890> —— Host 会把同一套 UI 挂在根路径，并按宿主系统渲染
-macOS / Windows 原生窗口外壳；浏览器标签页始终保持网页版外壳。
-
-Host 离线时 UI 自动回落设计稿 fixture。
-
-## 结构
-
-```text
-apps/
-  web/                 Workbench UI（三栏 + Monaco + SSE）
-  desktop/             Go Host（FS / shell / providers / sqlite / policy）
-packages/
-  agent-protocol/      事件与 Host 契约
-  policy/              策略求值
-  shared/
-schemas/               JSON Schema + fixtures
-examples/sample-workspace/
-docs/
+```powershell
+pnpm dev             # 仅启动 Vite，用于界面开发
+pnpm check           # TypeScript 类型检查
+pnpm build           # 前端生产构建
+pnpm build:desktop   # 当前平台桌面安装包
 ```
 
-## 命令
+Provider 的默认模型和本地候选模型均在设置中维护；Composer 可为单次 Run 覆盖模型，应用不会远程抓取模型目录。
 
-| 命令 | 说明 |
-|------|------|
-| `pnpm dev:host` | 启动本地 Host |
-| `pnpm dev:web` | 启动 UI |
-| `pnpm build` | 构建 TS 包与 web |
-| `pnpm build:host` | 编译 `artifacts/her-dock-host.exe` |
-| `pnpm typecheck` | 全仓类型检查 |
+Grok Build CLI 支持在 Provider 设置中直接完成官方 OAuth 或设备码登录、粘贴浏览器验证码、取消登录和退出。HerDock 只展示 `~/.grok/auth.json` 中的非敏感账号资料，token 不会写入 SQLite、日志或 RunEvent。
 
-## 员工版
+## 数据与凭据
 
-`what-herstaff-project` 侧栏已增加 **开发者模式** → `/developer`，说明如何启动 her-dock。
+- 新数据库位于 Tauri 应用数据目录中的 `herdock-v1.db`。
+- 不读取、迁移或删除旧 Go 版本数据库。
+- API Key 仅保存到 Windows Credential Manager 或 macOS Keychain；SQLite 只保存引用。
+- 工作区路径会被规范化，并拒绝 `..`、绝对路径和符号链接逃逸。
+- 外部文本附件复制到应用数据目录并按 SHA-256 去重；拒绝二进制文件和超过 2 MiB 的单文件。
 
 ## 文档
 
 - [架构](./docs/architecture.md)
 - [Provider 矩阵](./docs/provider-matrix.md)
-- [员工版对接](./docs/herstaff-integration.md)
-- [开发者模式入口](./docs/developer-mode-entry.md)
-- [Host API](./apps/desktop/README.md)
+- [安全模型](./docs/security.md)
+- [构建与发布](./docs/distribution.md)
+- [性能边界](./docs/performance.md)
+- [Browser Use](./docs/browser-use.md)
+- [设计验收](./docs/design-qa.md)
 
-## 验收对照
+## License
 
-- [x] 仅本地 Host 执行 Agent；无云端执行路径  
-- [x] 三 Provider 探测；runner 可调用  
-- [x] Continue Run + HumanEditSummary / git diff  
-- [x] 组织策略写拒绝（.env / secrets）  
-- [x] 连接器列表 + 审批 UI  
-- [x] 员工版开发者模式入口  
-- [x] Coding / 分析 quick prompts + 样例工作区  
+[MIT](./LICENSE)
