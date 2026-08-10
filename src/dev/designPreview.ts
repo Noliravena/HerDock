@@ -567,16 +567,66 @@ export function installDesignPreview() {
         case "artifact_list":
           return [
             {
+              id: "artifact_design",
+              runId: run.id,
+              workspaceId: workspace.id,
+              path: "out/design/herdock-home/index.html",
+              entryPath: "out/design/herdock-home/index.html",
+              name: "HerDock 产品首页",
+              ext: "html",
+              kind: "html",
+              renderer: "html",
+              status: "complete",
+              manifest: {
+                schemaVersion: "herdock.design-artifact/v1",
+                id: "herdock-home",
+              },
+              sizeBytes: 4820,
+              createdAt: now,
+            },
+            {
               id: "artifact_1",
               runId: run.id,
               workspaceId: workspace.id,
               path: "out/order-anomalies.csv",
               name: "order-anomalies.csv",
               ext: "csv",
+              kind: "file",
+              status: "complete",
+              manifest: {},
               sizeBytes: 1280,
               createdAt: now,
             },
           ];
+        case "design_system_list":
+          return [
+            {
+              id: "default",
+              name: "Neutral Modern",
+              category: "Starter",
+              description: "HerDock 内置的中性、清晰、产品化设计基线。",
+              scope: "builtin",
+              hasTokens: true,
+            },
+          ];
+        case "design_system_read":
+          return {
+            system: {
+              id: "default",
+              name: "Neutral Modern",
+              category: "Starter",
+              description: "HerDock 内置的中性、清晰、产品化设计基线。",
+              scope: "builtin",
+              hasTokens: true,
+            },
+            designMarkdown: "# Neutral Modern\n\nClear, calm product interface.",
+            tokensCss: ":root { --accent: #3b5ba5; }",
+          };
+        case "artifact_preview":
+          return {
+            path: String(args.path),
+            html: "<!doctype html><html><head><style>body{margin:0;font:16px system-ui;background:#f5f2ea;color:#222}.hero{min-height:100vh;display:grid;place-items:center}.card{padding:48px;border:1px solid #ddd;background:white;border-radius:20px;box-shadow:0 20px 50px #0002}h1{font-size:48px;margin:0 0 12px}</style></head><body><main class='hero'><section class='card'><h1>HerDock Design</h1><p>Agent-native design workspace preview.</p></section></main></body></html>",
+          };
         case "file_read": {
           const path = String(args.path);
           return {

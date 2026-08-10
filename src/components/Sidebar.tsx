@@ -7,6 +7,7 @@ import {
   IconChevron,
   IconCompose,
   IconConnector,
+  IconDesign,
   IconFile,
   IconFolderOpen,
   IconGear,
@@ -16,6 +17,7 @@ import {
   IconSearch,
   IconSkills,
 } from "./Icons";
+import { BrandMark } from "./BrandMark";
 import { Popover } from "./Popover";
 
 const GROUP_LABEL: Record<GroupMode, string> = {
@@ -56,6 +58,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       allRuns: s.allRuns,
       approvals: s.approvals,
       artifacts: s.artifacts,
+      appSurface: s.appSurface,
       centerView: s.centerView,
       collapsedWorkspaces: s.collapsedWorkspaces,
       connectors: s.connectors,
@@ -71,6 +74,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       session: s.session,
       sessions: s.sessions,
       setCenterView: s.setCenterView,
+      setAppSurface: s.setAppSurface,
       setSettingsOpen: s.setSettingsOpen,
       setSideTab: s.setSideTab,
       sideTab: s.sideTab,
@@ -126,7 +130,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       <header className={`brand ${brandInTitleBar ? "menu-only" : ""}`}>
         {!brandInTitleBar && (
           <>
-            <span className="logo">行</span>
+            <BrandMark className="logo" />
             <span className="brand-text">
               <span className="brand-title">HerDock</span>
               <span className="brand-sub">行知 · 本地工作台</span>
@@ -143,6 +147,17 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
           {(close) => (
             <div className="pop-scroll">
               <div className="pop-section">
+                <button
+                  type="button"
+                  className="pop-item"
+                  onClick={() => {
+                    close();
+                    state.setAppSurface("design");
+                  }}
+                >
+                  <IconDesign />
+                  <span>设计</span>
+                </button>
                 <button
                   type="button"
                   className="pop-item"
@@ -233,6 +248,21 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
           </span>
           <span className="nav-text">新建会话</span>
           <span className="nav-kbd">{state.platform.newHint}</span>
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${state.appSurface === "design" ? "active" : ""}`}
+          onClick={() => state.setAppSurface("design")}
+        >
+          <span className="nav-glyph">
+            <IconDesign />
+          </span>
+          <span className="nav-text">设计</span>
+          {state.artifacts.filter((item) => item.kind !== "file").length > 0 && (
+            <span className="nav-badge">
+              {state.artifacts.filter((item) => item.kind !== "file").length}
+            </span>
+          )}
         </button>
         <button
           type="button"

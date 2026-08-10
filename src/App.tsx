@@ -28,6 +28,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { Thread } from "./components/Thread";
 import { NewTabPage } from "./components/NewTabPage";
+import { BrandMark } from "./components/BrandMark";
 import { useWorkbench, type WorkTab } from "./store/workbench";
 
 const ActivityView = lazy(() =>
@@ -48,6 +49,9 @@ const TerminalPane = lazy(() =>
 const BrowserView = lazy(() =>
   import("./components/BrowserView").then((module) => ({ default: module.BrowserView })),
 );
+const DesignView = lazy(() =>
+  import("./components/DesignView").then((module) => ({ default: module.DesignView })),
+);
 
 export function App() {
   const {
@@ -64,6 +68,7 @@ export function App() {
     settingsOpen,
     activeTab,
     tabs,
+    appSurface,
   } = useWorkbench(
     useShallow((state) => ({
       centerView: state.centerView,
@@ -79,6 +84,7 @@ export function App() {
       settingsOpen: state.settingsOpen,
       activeTab: state.activeTab,
       tabs: state.tabs,
+      appSurface: state.appSurface,
     })),
   );
 
@@ -148,49 +154,59 @@ export function App() {
         <div className="body-row">
           <Sidebar onOpenWorkspace={openWorkspace} />
 
-          <section className="center">
-            <TabBar />
+          <section className={`center ${appSurface === "design" ? "design-center" : ""}`}>
+            {appSurface === "workbench" ? (
+              <>
+                <TabBar />
 
-            {centerView === "chat" && <ChatView />}
+                {centerView === "chat" && <ChatView />}
 
-            {centerView === "code" && (
-              <Suspense fallback={<ViewLoading />}>
-                <EditorPane
-                  path={openFile}
-                  value={fileContent}
-                  onChange={setFileContent}
-                  readOnly={!hostOnline && !!openFile}
-                />
-              </Suspense>
-            )}
+                {centerView === "code" && (
+                  <Suspense fallback={<ViewLoading />}>
+                    <EditorPane
+                      path={openFile}
+                      value={fileContent}
+                      onChange={setFileContent}
+                      readOnly={!hostOnline && !!openFile}
+                    />
+                  </Suspense>
+                )}
 
-            {centerView === "diff" && (
+                {centerView === "diff" && (
+                  <Suspense fallback={<ViewLoading />}>
+                    <DiffView />
+                  </Suspense>
+                )}
+                {centerView === "activity" && (
+                  <Suspense fallback={<ViewLoading />}>
+                    <ActivityView />
+                  </Suspense>
+                )}
+                {centerView === "terminal" && (
+                  <Suspense fallback={<ViewLoading />}>
+                    <TerminalPane />
+                  </Suspense>
+                )}
+                {centerView === "new-tab" && activeWorkTab && (
+                  <NewTabPage tabKey={activeWorkTab.key} />
+                )}
+                {centerView === "browser" && activeWorkTab?.browserId && (
+                  <Suspense fallback={<ViewLoading />}>
+                    <BrowserView
+                      browserId={activeWorkTab.browserId}
+                      initialUrl={activeWorkTab.url || "https://www.bing.com/"}
+                    />
+                  </Suspense>
+                )}
+              </>
+            ) : (
               <Suspense fallback={<ViewLoading />}>
-                <DiffView />
-              </Suspense>
-            )}
-            {centerView === "activity" && (
-              <Suspense fallback={<ViewLoading />}>
-                <ActivityView />
-              </Suspense>
-            )}
-            {centerView === "terminal" && (
-              <Suspense fallback={<ViewLoading />}>
-                <TerminalPane />
-              </Suspense>
-            )}
-            {centerView === "new-tab" && activeWorkTab && <NewTabPage tabKey={activeWorkTab.key} />}
-            {centerView === "browser" && activeWorkTab?.browserId && (
-              <Suspense fallback={<ViewLoading />}>
-                <BrowserView
-                  browserId={activeWorkTab.browserId}
-                  initialUrl={activeWorkTab.url || "https://www.bing.com/"}
-                />
+                <DesignView />
               </Suspense>
             )}
           </section>
 
-          {rightOpen && <RightPanel />}
+          {appSurface === "workbench" && rightOpen && <RightPanel />}
         </div>
 
         <StatusBar />
@@ -234,7 +250,7 @@ function WinChrome() {
   return (
     <div className="chrome-win" data-tauri-drag-region>
       <div className="title" data-tauri-drag-region>
-        <span className="mark">行</span>
+        <BrandMark className="mark" />
         <span>HerDock · 行知</span>
         <span className="sub">— {workspaceName || "未打开工作区"}</span>
       </div>

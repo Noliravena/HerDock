@@ -10,6 +10,7 @@ import {
   MagnifyingGlass,
   Minus,
   NotePencil,
+  Palette,
   PlugsConnected,
   Plus,
   Pulse,
@@ -36,6 +37,9 @@ export function IconCompose({ size = 16, className }: IconProps) {
 }
 export function IconActivity({ size = 16, className }: IconProps) {
   return <Pulse {...defaults} size={size} className={className} />;
+}
+export function IconDesign({ size = 16, className }: IconProps) {
+  return <Palette {...defaults} size={size} className={className} />;
 }
 export function IconSkills({ size = 16, className }: IconProps) {
   return <SlidersHorizontal {...defaults} size={size} className={className} />;

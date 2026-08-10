@@ -171,8 +171,27 @@ export type Artifact = {
   name: string;
   ext: string;
   sizeBytes?: number;
+  kind: string;
+  renderer?: string;
+  entryPath?: string;
+  status: "streaming" | "complete" | "error" | string;
+  manifest: Record<string, unknown>;
   createdAt?: string;
 };
+export type DesignSystem = {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  scope: "builtin" | "global" | "workspace" | string;
+  hasTokens: boolean;
+};
+export type DesignSystemContent = {
+  system: DesignSystem;
+  designMarkdown: string;
+  tokensCss: string;
+};
+export type ArtifactPreview = { path: string; html: string };
 export type Approval = {
   approvalId: string;
   runId: string;
@@ -398,10 +417,16 @@ export const hostApi = {
       providerId: body.providerId ?? "codex",
     }),
   listArtifacts: (workspaceId: string) => call<Artifact[]>("artifact_list", { workspaceId }),
+  artifactPreview: (workspaceId: string, path: string) =>
+    call<ArtifactPreview>("artifact_preview", { workspaceId, path }),
   revealArtifact: (workspaceId: string, path: string) =>
     call<void>("artifact_reveal", { workspaceId, path }),
   exportArtifact: (workspaceId: string, path: string, destination: string) =>
     call<void>("artifact_export", { workspaceId, path, destination }),
+  designSystems: (workspaceId?: string) =>
+    call<DesignSystem[]>("design_system_list", { workspaceId }),
+  readDesignSystem: (id: string, workspaceId?: string) =>
+    call<DesignSystemContent>("design_system_read", { id, workspaceId }),
   listRuns: (sessionId: string) => call<Run[]>("run_list", { sessionId }),
   recentRuns: () => call<Run[]>("run_recent"),
   startRun: (
