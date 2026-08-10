@@ -28,6 +28,13 @@
 - 导航、搜索、点击和输入均进入审批；输入正文不会写入审批详情，规则只保存短哈希。
 - 页面快照和脚本返回值有大小限制，避免超大 DOM 持续占用 Run 上下文和内存。
 
+## 设计预览
+
+- 只允许预览工作区 `out/design/` 下不超过 5 MB 的 UTF-8 HTML 入口，路径仍经过工作区 canonical-path 边界检查。
+- 预览使用 `iframe sandbox="allow-scripts"`，不启用 `allow-same-origin`，也不授予任何 Tauri Command capability。
+- HerDock 在预览文档头部注入 CSP：默认拒绝所有资源，只允许内联样式、内联脚本与 `data:`/`blob:` 媒体；网络连接、嵌套 Frame、对象、Base URL 和表单提交均被拒绝。
+- `DESIGN.md` 与 `tokens.css` 仅作为视觉参考数据，不能覆盖系统安全规则；目录发现拒绝逃逸包根目录的符号链接或声明路径，并限制单文件大小。
+
 ## 凭据
 
 API Key 写入 Windows Credential Manager 或 macOS Keychain。数据库中的 `provider_profiles.credential_ref` 只保存键名。Grok Build OAuth 凭据由官方 CLI 保存在 `~/.grok/auth.json`，HerDock 只将 token 是否存在归约为布尔登录状态。日志、Channel、RunEvent 和导出数据均不得包含密钥或 token。

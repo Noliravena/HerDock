@@ -51,6 +51,14 @@ docs/                   架构、安全、发布与设计验收
 
 中间标签栏允许创建独立的 Agent、编辑器、终端、活动和浏览器视图。浏览器视图由 Rust `BrowserManager` 管理真实的 Tauri 子 WebView；React 只维护工具栏、标签元数据和子 WebView 的逻辑坐标。切换标签时隐藏非活动浏览器，关闭标签或应用时销毁对应 WebView。
 
+## 设计工作区
+
+Sidebar 的“设计”入口切换到独立 `AppSurface`，不占用 Workbench 的动态标签状态。设计任务仍通过既有 Session、Run、审批、Checkpoint、Provider、Skill、上下文和 MCP 链路执行，不引入第二套 Agent Runtime。
+
+设计产物以文件为源：`out/design/<id>/artifact.json` 声明稳定 ID、入口、种类、Renderer、状态和导出能力，入口 HTML 与素材保存在同一目录。产物扫描器把合法 manifest 目录索引为一个逻辑产物，并继续兼容 `out/` 下原有的松散文件。
+
+设计系统从应用数据目录的 `design-systems/` 和工作区 `.herdock/design-systems/` 发现；工作区同 ID 包覆盖全局包。包以 `DESIGN.md` 为设计说明，可选 `manifest.json` 和 `tokens.css`，选中内容在 Run 启动前组合进设计 brief。
+
 Browser Use 通过统一 Tool Registry 暴露固定工具，不向 Provider 提供任意 JavaScript 执行能力。页面快照、导航、搜索、点击和输入都在 Rust 内映射为受限操作，并复用 Run 的事件、取消与审批流程。
 
 ## 调度
