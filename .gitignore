@@ -1,43 +1,111 @@
-# Dependencies
+# Dependencies and package-manager caches
 node_modules/
+.pnpm-store/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 
-# Build
+# Frontend and desktop build output
 dist/
 build/
-.turbo/
 .vite/
 *.tsbuildinfo
+src-tauri/target/
+src-tauri/gen/
+artifacts/
+
+# Native binaries and installers
 *.exe
 *.test
-apps/desktop/her-dock-host*
+*.pdb
+*.wixpdb
+*.msi
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.dmg
+*.AppImage
+*.deb
+*.rpm
 
-# Go
-apps/desktop/vendor/
-
-# Env
+# Environment and private signing material
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.pem
+*.p12
+*.pfx
 
-# Logs
+# Runtime data and local state
+logs/
+tmp/
+temp/
+.cache/
+*.local
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+
+# Logs and crash dumps
 *.log
+*.log.*
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
+*.dmp
+*.stackdump
 
-# Test / coverage
+# Tests, coverage, and local reports
 coverage/
+.nyc_output/
+.vitest/
 test-results/
 playwright-report/
+blob-report/
+allure-results/
+wdio-logs/
+junit*.xml
+
+# Tool caches
+.eslintcache
+.stylelintcache
+.prettier-cache
+.parcel-cache/
+.turbo/
+rust-project.json
 
 # IDE / OS
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 .idea/
+.fleet/
+.vs/
+.history/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+*.swp
+*.swo
+*~
 
-# Misc
-artifacts/
-tmp/
-*.local
+# Node.js REPL history
+.node_repl_history
