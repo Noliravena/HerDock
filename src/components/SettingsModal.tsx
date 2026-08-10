@@ -35,6 +35,16 @@ export function SettingsModal() {
     })),
   );
   const [tab, setTab] = useState<Tab>("providers");
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [settingsOpen, setSettingsOpen]);
+
   if (!settingsOpen) return null;
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}>

@@ -60,7 +60,9 @@ export function RightPanel() {
             onClick={() => setSideTab(k)}
           >
             {label}
-            {k === "approvals" && approvalCount ? ` ${approvalCount}` : ""}
+            {k === "approvals" && approvalCount > 0 && (
+              <span className="tab-count">{approvalCount}</span>
+            )}
           </button>
         ))}
       </div>
@@ -226,7 +228,7 @@ function ApprovalsTab() {
   return (
     <div className="side-body padded">
       {approvals.map((a) => (
-        <div className="appr-card" key={a.approvalId}>
+        <div className={`appr-card risk-${riskClass(a.risk) || "medium"}`} key={a.approvalId}>
           <div className="appr-title">
             <span>{a.title}</span>
             <span className={`risk ${riskClass(a.risk)}`}>{riskLabel(a.risk)}</span>
@@ -770,6 +772,15 @@ function cronLabel(cron: string): string {
   const at = `${hour.padStart(2, "0")}:${min.padStart(2, "0")}`;
   if (dom === "*" && mon === "*" && dow === "*") return `每天 ${at}`;
   if (dom === "*" && mon === "*" && /^\d$/.test(dow)) return `每周${WEEKDAYS[Number(dow)]} ${at}`;
+  if (dom === "*" && mon === "*" && dow === "1-5") return `工作日 ${at}`;
+  if (dom === "*" && mon === "*" && dow === "0,6") return `周末 ${at}`;
+  if (dom === "*" && mon === "*" && /^[0-6](,[0-6])+$/.test(dow)) {
+    const days = dow
+      .split(",")
+      .map((d) => WEEKDAYS[Number(d)])
+      .join("、");
+    return `每周${days} ${at}`;
+  }
   if (/^\d+$/.test(dom) && mon === "*" && dow === "*") return `每月 ${dom} 日 ${at}`;
   return cron;
 }

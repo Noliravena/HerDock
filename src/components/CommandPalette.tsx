@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Diamond,
@@ -53,6 +53,8 @@ export function CommandPalette({ onOpenWorkspace }: { onOpenWorkspace: () => voi
     })),
   );
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -146,42 +148,76 @@ export function CommandPalette({ onOpenWorkspace }: { onOpenWorkspace: () => voi
     ].filter((g) => g.items.length > 0);
   }, [state, onOpenWorkspace]);
 
+  const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+
+  // Keep the highlight inside the result set as the query narrows it.
+  useEffect(() => {
+    setActive((index) => (index < flat.length ? index : 0));
+  }, [flat.length]);
+
+  useEffect(() => {
+    listRef.current
+      ?.querySelector<HTMLElement>(".palette-item.active")
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
   const runItem = (item: PaletteItem) => {
     item.run();
     state.togglePalette();
   };
 
+  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      state.togglePalette();
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!flat.length) return;
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActive((index) => (index + step + flat.length) % flat.length);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const item = flat[active] || flat[0];
+      if (item) runItem(item);
+    }
+  };
+
+  let cursor = -1;
+
   return (
     <div className="palette-mask" onClick={state.togglePalette}>
       <div className="palette" onClick={(e) => e.stopPropagation()}>
         <div className="palette-input">
-          <IconSearch size={15} />
+          <IconSearch size={16} />
           <input
             ref={inputRef}
             value={state.paletteQuery}
             placeholder="搜索文件、会话，或直接下达指令…"
-            onChange={(e) => state.setPaletteQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") state.togglePalette();
-              if (e.key === "Enter") {
-                const first = groups[0]?.items[0];
-                if (first) runItem(first);
-              }
+            onChange={(e) => {
+              state.setPaletteQuery(e.target.value);
+              setActive(0);
             }}
+            onKeyDown={onKeyDown}
           />
           <span className="esc">ESC</span>
         </div>
-        <div className="palette-list">
+        <div className="palette-list" ref={listRef}>
           {groups.map((g) => (
             <div key={g.label}>
               <div className="palette-group">{g.label}</div>
               {g.items.map((item) => {
                 const ItemIcon = item.icon;
+                cursor += 1;
+                const index = cursor;
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    className="palette-item"
+                    className={`palette-item ${index === active ? "active" : ""}`}
+                    onMouseEnter={() => setActive(index)}
                     onClick={() => runItem(item)}
                   >
                     <span className={`palette-glyph ${item.tone}`}>
@@ -195,6 +231,20 @@ export function CommandPalette({ onOpenWorkspace }: { onOpenWorkspace: () => voi
             </div>
           ))}
           {!groups.length && <div className="empty-hint">没有匹配项。</div>}
+        </div>
+        <div className="palette-foot">
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> 选择
+          </span>
+          <span>
+            <kbd>↵</kbd> 打开
+          </span>
+          <span>
+            <kbd>esc</kbd> 关闭
+          </span>
+          <span className="grow" />
+          <span>{flat.length} 项结果</span>
         </div>
       </div>
     </div>

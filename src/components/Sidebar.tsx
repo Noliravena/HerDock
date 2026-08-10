@@ -32,6 +32,15 @@ const STATUS_RANK: Record<string, number> = {
   failed: 5,
 };
 
+/** Per-workspace accent, matching the three-colour rhythm of the design mock. */
+const WS_ACCENTS = ["#3b5ba5", "#4a7a3c", "#a5622a", "#6b4f8a", "#b4483a"];
+
+function accentFor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return WS_ACCENTS[hash % WS_ACCENTS.length];
+}
+
 /** Latest run status per session, used for the coloured dots in the tree. */
 function statusOf(runs: Run[], sessionId: string): string {
   return runs.find((r) => r.sessionId === sessionId)?.status || "idle";
@@ -76,6 +85,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       : [];
   const pendingApprovals = state.approvals.length;
   const liveRuns = state.queue.length;
+  const readyProviders = state.providers.filter((provider) => provider.available).length;
 
   const knownRuns = state.allRuns.length ? state.allRuns : state.runs;
   const sortSessions = (list: Session[]): Session[] => {
@@ -95,7 +105,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   return (
     <aside className="left">
       {state.platform.windowControl === "macos" && (
-        <div className="mac-lights">
+        <div className="mac-lights" data-tauri-drag-region>
           <span className="traffic">
             <i />
             <i />
@@ -104,37 +114,42 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
         </div>
       )}
 
-      <div className="brand">
-        <div className="logo">行</div>
-        <div className="brand-name">
-          HerDock <span>行知</span>
-        </div>
+      <header className="brand">
+        <span className="logo">行</span>
+        <span className="brand-text">
+          <span className="brand-title">HerDock</span>
+          <span className="brand-sub">行知 · 本地工作台</span>
+        </span>
         <button
           type="button"
           className="icon-btn push"
-          title="搜索 / 命令面板"
+          title={`搜索 / 命令面板 ${state.platform.commandHint}`}
           onClick={state.togglePalette}
         >
           <IconSearch />
         </button>
-      </div>
+      </header>
 
-      <div className="nav-group">
+      <nav className="nav-group">
         <button type="button" className="nav-item" onClick={() => void state.newSession()}>
-          <IconCompose />
-          <span>新建会话</span>
-          <span className="hint">{state.platform.newHint}</span>
+          <span className="nav-glyph">
+            <IconCompose />
+          </span>
+          <span className="nav-text">新建会话</span>
+          <span className="nav-kbd">{state.platform.newHint}</span>
         </button>
         <button
           type="button"
           className={`nav-item ${state.centerView === "activity" ? "active" : ""}`}
           onClick={() => state.setCenterView("activity")}
         >
-          <IconActivity />
-          <span>活动</span>
-          {liveRuns > 0 && <span className="hint warn">{liveRuns}</span>}
+          <span className="nav-glyph">
+            <IconActivity />
+          </span>
+          <span className="nav-text">活动</span>
+          {liveRuns > 0 && <span className="nav-badge warn">{liveRuns}</span>}
         </button>
-      </div>
+      </nav>
 
       <div className="section-label">
         <span>工作区</span>
@@ -159,91 +174,123 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             state.workspaceSessions[w.id] || (w.id === state.workspace?.id ? state.sessions : []),
           );
           return (
-            <div className="ws-block" key={w.id}>
+            <div
+              className="ws-block"
+              key={w.id}
+              style={{ ["--ws-accent" as string]: accentFor(w.id) }}
+            >
               <button
                 type="button"
                 className={`ws-head ${collapsed ? "collapsed" : ""}`}
                 onClick={() => state.toggleWorkspaceCollapsed(w.id)}
+                title={w.rootPath || w.name}
               >
                 <span className="caret">
                   <IconChevron size={10} />
                 </span>
                 <span className="ws-dot" />
                 <span className="ws-name">{w.name}</span>
-                {w.dirtySummary && <span className="ws-diff">{w.dirtySummary}</span>}
+                {w.dirtySummary ? (
+                  <span className="ws-diff">{w.dirtySummary}</span>
+                ) : (
+                  sessions.length > 0 && <span className="ws-count">{sessions.length}</span>
+                )}
               </button>
-              {!collapsed &&
-                sessions.map((sess) => (
-                  <button
-                    key={sess.id}
-                    type="button"
-                    className={`session-row ${state.session?.id === sess.id ? "active" : ""}`}
-                    onClick={() => void state.selectSession(sess.id)}
-                    title={sess.title}
-                  >
-                    <span className={`run-dot ${statusOf(knownRuns, sess.id)}`} />
-                    <span className="name">{sess.title}</span>
-                  </button>
-                ))}
+              {!collapsed && sessions.length > 0 && (
+                <div className="ws-sessions">
+                  {sessions.map((sess) => (
+                    <button
+                      key={sess.id}
+                      type="button"
+                      className={`session-row ${state.session?.id === sess.id ? "active" : ""}`}
+                      onClick={() => void state.selectSession(sess.id)}
+                      title={sess.title}
+                    >
+                      <span className={`run-dot ${statusOf(knownRuns, sess.id)}`} />
+                      <span className="name">{sess.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {!collapsed && !sessions.length && (
-                <div className="empty-hint" style={{ padding: "6px 12px", fontSize: 11.5 }}>
-                  暂无会话
+                <div className="ws-sessions">
+                  <p className="ws-empty">暂无会话</p>
                 </div>
               )}
             </div>
           );
         })}
         {!workspaces.length && (
-          <div className="empty-hint">还没有工作区，点右上角 + 打开一个本地文件夹。</div>
+          <div className="ws-blank">
+            <p>还没有工作区</p>
+            <button type="button" className="ghost-btn" onClick={onOpenWorkspace}>
+              <IconPlus size={11} />
+              打开本地文件夹
+            </button>
+          </div>
         )}
       </div>
 
-      <div className="nav-bottom">
+      <nav className="nav-bottom">
         <button
           type="button"
           className={`nav-item ${state.sideTab === "skills" ? "active" : ""}`}
           onClick={() => state.setSideTab("skills")}
         >
-          <IconSkills />
-          <span>技能</span>
-          <span className="hint">{state.skills.length || ""}</span>
+          <span className="nav-glyph">
+            <IconSkills />
+          </span>
+          <span className="nav-text">技能</span>
+          {state.skills.length > 0 && <span className="nav-badge">{state.skills.length}</span>}
         </button>
         <button
           type="button"
           className={`nav-item ${state.sideTab === "approvals" ? "active" : ""}`}
           onClick={() => state.setSideTab("approvals")}
         >
-          <IconConnector />
-          <span>本地 MCP</span>
-          <span className={`hint ${pendingApprovals ? "warn" : ""}`}>
-            {pendingApprovals || state.connectors.length || ""}
+          <span className="nav-glyph">
+            <IconConnector />
           </span>
+          <span className="nav-text">本地 MCP</span>
+          {(pendingApprovals || state.connectors.length) > 0 && (
+            <span className={`nav-badge ${pendingApprovals ? "warn" : ""}`}>
+              {pendingApprovals || state.connectors.length}
+            </span>
+          )}
         </button>
         <button
           type="button"
           className={`nav-item ${state.sideTab === "cost" ? "active" : ""}`}
           onClick={() => state.setSideTab("cost")}
         >
-          <IconFile />
-          <span>产物库</span>
-          <span className="hint">{state.artifacts.length || ""}</span>
+          <span className="nav-glyph">
+            <IconFile />
+          </span>
+          <span className="nav-text">产物库</span>
+          {state.artifacts.length > 0 && (
+            <span className="nav-badge">{state.artifacts.length}</span>
+          )}
         </button>
-      </div>
+      </nav>
 
       <div className="user-card">
-        <button type="button" className="inner" onClick={() => state.setSettingsOpen(true)}>
-          <div className="avatar">
-            <IconGear />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div className="user-name">{APP_DISPLAY_NAME}</div>
-            <div className="user-meta">
-              {state.hostOnline
-                ? `本地核心 · ${state.providers.filter((provider) => provider.available).length} Provider`
-                : "核心未连接"}
-            </div>
-          </div>
-          <span className="icon-btn push" aria-hidden>
+        <button
+          type="button"
+          className="inner"
+          onClick={() => state.setSettingsOpen(true)}
+          title="打开设置"
+        >
+          <span className="avatar">
+            行
+            <i className={`presence ${state.hostOnline ? "on" : "off"}`} />
+          </span>
+          <span className="user-text">
+            <span className="user-name">{APP_DISPLAY_NAME}</span>
+            <span className="user-meta">
+              {state.hostOnline ? `本地核心 · ${readyProviders} PROVIDER` : "核心未连接"}
+            </span>
+          </span>
+          <span className="user-gear" aria-hidden>
             <IconGear />
           </span>
         </button>
