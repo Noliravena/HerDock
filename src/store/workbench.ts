@@ -50,7 +50,7 @@ export function isConsoleView(view: string): view is ConsoleView {
   return (CONSOLE_VIEWS as string[]).includes(view);
 }
 export type AppSurface = "workbench" | "design";
-export type DesignRoute = "home" | "projects" | "systems" | "assets";
+export type DesignRoute = "canvas" | "projects" | "systems" | "assets";
 export type GroupMode = "time" | "status" | "name";
 export type SessionKind = "coding" | "analysis" | "mixed";
 export type TabFeature = "agent" | "browser" | "terminal" | "editor" | "diff";
@@ -90,6 +90,23 @@ export type DesignRunInput = {
   renderer: "html" | "deck-html";
   designSystemId: string;
   skillId?: string;
+};
+
+export type DesignDraft = {
+  workspaceId?: string;
+  title: string;
+  brief: string;
+  templateId: string;
+  designSystemId: string;
+  skillId: string;
+};
+
+const EMPTY_DESIGN_DRAFT: DesignDraft = {
+  title: "",
+  brief: "",
+  templateId: "web",
+  designSystemId: "default",
+  skillId: "",
 };
 
 const BASE_TABS: WorkTab[] = [
@@ -171,6 +188,8 @@ type State = {
   centerView: CenterView;
   appSurface: AppSurface;
   designRoute: DesignRoute;
+  activeDesignArtifactId: string | null;
+  designDraft: DesignDraft;
   sideTab: SideTab;
   rightOpen: boolean;
   paletteOpen: boolean;
@@ -202,6 +221,9 @@ type State = {
   setCenterView: (view: CenterView) => void;
   setAppSurface: (surface: AppSurface) => void;
   setDesignRoute: (route: DesignRoute) => void;
+  setActiveDesignArtifact: (artifactId: string | null) => void;
+  setDesignDraft: (patch: Partial<DesignDraft>) => void;
+  openDesignArtifact: (artifactId: string) => Promise<void>;
   setSideTab: (tab: SideTab) => void;
   openPath: (path: string) => Promise<void>;
   createTab: () => void;
@@ -213,6 +235,7 @@ type State = {
   saveFile: () => Promise<void>;
   sendPrompt: () => Promise<void>;
   startDesignRun: (input: DesignRunInput) => Promise<void>;
+  continueDesignRun: (runId: string, prompt: string) => Promise<void>;
   continueRun: () => Promise<void>;
   retryRun: (runId?: string) => Promise<void>;
   cancelRun: () => Promise<void>;
@@ -494,7 +517,9 @@ export const useWorkbench = create<State>((set, get) => ({
   activeTab: "chat",
   centerView: "chat",
   appSurface: "workbench",
-  designRoute: "home",
+  designRoute: "canvas",
+  activeDesignArtifactId: null,
+  designDraft: EMPTY_DESIGN_DRAFT,
   sideTab: "workspace",
   rightOpen: true,
   paletteOpen: false,
@@ -616,13 +641,23 @@ export const useWorkbench = create<State>((set, get) => ({
         tabs: BASE_TABS,
         activeTab: "chat",
         centerView: "chat",
+        activeDesignArtifactId: null,
+        designDraft:
+          state.designDraft.workspaceId === workspace.id
+            ? state.designDraft
+            : { ...EMPTY_DESIGN_DRAFT, workspaceId: workspace.id },
         statusLine: `${workspace.name} · ${workspace.branch || "未启用 Git"}`,
         error: null,
       }));
       if (sessions[0]) await get().selectSession(sessions[0].id);
       await get().refreshPanels();
     } catch (error) {
-      set({ error: String(error) });
+      const message = String(error);
+      set({
+        error: /workspace does not exist/i.test(message)
+          ? "这个最近工作区已不存在，请点击“打开文件夹”重新选择。"
+          : message,
+      });
     }
   },
 
@@ -853,10 +888,64 @@ export const useWorkbench = create<State>((set, get) => ({
     });
   },
   setAppSurface(appSurface) {
-    set({ appSurface, paletteOpen: false });
+    const current = get();
+    const designArtifact =
+      appSurface === "design" && !current.activeDesignArtifactId
+        ? current.artifacts.find(
+            (item) =>
+              item.runId === current.run?.id &&
+              item.path.startsWith("out/design/") &&
+              ["html", "deck-html"].includes(item.renderer || ""),
+          ) ||
+          current.artifacts.find(
+            (item) =>
+              item.path.startsWith("out/design/") &&
+              ["html", "deck-html"].includes(item.renderer || ""),
+          )
+        : undefined;
+    set({
+      appSurface,
+      paletteOpen: false,
+      activeDesignArtifactId: designArtifact?.id || current.activeDesignArtifactId,
+    });
+    if (designArtifact) void get().openDesignArtifact(designArtifact.id);
   },
   setDesignRoute(designRoute) {
     set({ designRoute });
+  },
+  setActiveDesignArtifact(activeDesignArtifactId) {
+    set({ activeDesignArtifactId, designRoute: "canvas" });
+  },
+  setDesignDraft(patch) {
+    set((state) => ({ designDraft: { ...state.designDraft, ...patch } }));
+  },
+  async openDesignArtifact(artifactId) {
+    const artifact = get().artifacts.find((item) => item.id === artifactId);
+    if (!artifact) {
+      set({ activeDesignArtifactId: null, error: "这个设计产物已不存在，请刷新项目列表。" });
+      return;
+    }
+    set({ activeDesignArtifactId: artifact.id, designRoute: "canvas", appSurface: "design" });
+    if (!artifact.runId) return;
+    try {
+      const run =
+        get().allRuns.find((item) => item.id === artifact.runId) ||
+        get().runs.find((item) => item.id === artifact.runId);
+      const [eventPage, checkpoints] = await Promise.all([
+        hostApi.eventPage(artifact.runId),
+        hostApi.checkpoints(artifact.runId),
+      ]);
+      if (get().activeDesignArtifactId !== artifactId) return;
+      set({
+        run: run || null,
+        events: eventPage.events,
+        hasEarlierEvents: eventPage.hasMore,
+        historyWindowExpanded: false,
+        checkpoints,
+      });
+    } catch (error) {
+      set({ error: String(error) });
+    }
   },
   setSideTab(sideTab) {
     set({ sideTab, rightOpen: true });
@@ -1099,7 +1188,18 @@ export const useWorkbench = create<State>((set, get) => ({
       const onEvent = (event: AgentEvent) => {
         set((state) => applyEvent(state, event));
         if (["completed", "failed", "cancelled"].includes(event.type)) {
-          void get().refreshPanels();
+          void get()
+            .refreshPanels()
+            .then(() => {
+              if (event.type !== "completed") return;
+              const artifact = get().artifacts.find(
+                (item) =>
+                  item.runId === event.runId &&
+                  item.path.startsWith("out/design/") &&
+                  ["html", "deck-html"].includes(item.renderer || ""),
+              );
+              if (artifact) void get().openDesignArtifact(artifact.id);
+            });
         }
       };
       const run = await hostApi.startRun(
@@ -1121,7 +1221,8 @@ export const useWorkbench = create<State>((set, get) => ({
         run,
         runs: prependUnique(state.runs, run),
         allRuns: prependUnique(state.allRuns, run),
-        designRoute: "projects",
+        designRoute: "canvas",
+        designDraft: { ...EMPTY_DESIGN_DRAFT, workspaceId: workspace.id },
       }));
     } catch (error) {
       set({ error: String(error), statusLine: "设计任务启动失败" });
@@ -1146,6 +1247,34 @@ export const useWorkbench = create<State>((set, get) => ({
       }));
     } catch (error) {
       set({ error: String(error) });
+    }
+  },
+
+  async continueDesignRun(runId, prompt) {
+    const text = prompt.trim();
+    if (!runId || !text) return;
+    set({ statusLine: "正在继续设计迭代", error: null });
+    try {
+      const next = await hostApi.continueRun(runId, text, (event) => {
+        set((state) => applyEvent(state, event));
+        if (["completed", "failed", "cancelled"].includes(event.type)) {
+          void get().refreshPanels();
+        }
+      });
+      set((state) => ({
+        run: next,
+        runs: prependUnique(state.runs, next),
+        allRuns: prependUnique(state.allRuns, next),
+        events: [],
+        hasEarlierEvents: false,
+        historyWindowExpanded: false,
+        loadingEarlierEvents: false,
+        designRoute: "canvas",
+        appSurface: "design",
+        statusLine: `${next.id} · 设计迭代已启动`,
+      }));
+    } catch (error) {
+      set({ error: String(error), statusLine: "设计迭代启动失败" });
     }
   },
 
