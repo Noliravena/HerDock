@@ -52,6 +52,36 @@ const run = {
   createdAt: now,
   updatedAt: now,
 };
+const designRun = {
+  id: "RUN-DESIGN-42",
+  sessionId: sessions[0].id,
+  workspaceId: workspace.id,
+  providerId: "codex",
+  status: "waiting_approval",
+  prompt: "为 HerDock 设计一套清晰、克制的一体化产品首页，并给出两个可比较方案。",
+  planProgress: "3/4",
+  tokenUsage: { input: 3280, output: 960, total: 4240 },
+  createdAt: now,
+  updatedAt: now,
+};
+const designEvents = [
+  {
+    id: "design_evt_1",
+    runId: designRun.id,
+    type: "message.user",
+    ts: now,
+    seq: 1,
+    text: designRun.prompt,
+  },
+  {
+    id: "design_evt_2",
+    runId: designRun.id,
+    type: "message.assistant",
+    ts: now,
+    seq: 2,
+    text: "已生成首个可运行方案。你可以在中间画布切换设备尺寸，或继续描述要调整的层级与视觉气质。",
+  },
+];
 const events = [
   { id: "evt_1", runId: run.id, type: "message.user", ts: now, seq: 1, text: run.prompt },
   {
@@ -426,13 +456,13 @@ export function installDesignPreview() {
         case "session_list":
           return sessions;
         case "run_recent":
-          return [run];
+          return [designRun, run];
         case "run_list":
-          return [run];
+          return [designRun, run];
         case "run_events":
           return events;
         case "run_events_page":
-          return { events, hasMore: false };
+          return { events: args.runId === designRun.id ? designEvents : events, hasMore: false };
         case "browser_create":
         case "browser_navigate":
         case "browser_search":
@@ -466,15 +496,25 @@ export function installDesignPreview() {
             mcpServerIds: ["mcp_fs"],
           };
         case "run_checkpoints":
-          return [
-            {
-              id: "CP-38A2",
-              runId: run.id,
-              label: "应用订单校验补丁前",
-              snapshotRef: "local://CP-38A2",
-              createdAt: now,
-            },
-          ];
+          return args.runId === designRun.id
+            ? [
+                {
+                  id: "CP-DESIGN-1",
+                  runId: designRun.id,
+                  label: "生成初始首页方案",
+                  snapshotRef: "local://CP-DESIGN-1",
+                  createdAt: now,
+                },
+              ]
+            : [
+                {
+                  id: "CP-38A2",
+                  runId: run.id,
+                  label: "应用订单校验补丁前",
+                  snapshotRef: "local://CP-38A2",
+                  createdAt: now,
+                },
+              ];
         case "checkpoint_preview":
           return {
             checkpointId: args.checkpointId,
@@ -492,7 +532,7 @@ export function installDesignPreview() {
           return [
             {
               approvalId: "approval_preview",
-              runId: run.id,
+              runId: designRun.id,
               title: "写入工作区文件",
               detail: "src/rules/order-audit.ts",
               risk: "medium",
@@ -563,9 +603,9 @@ export function installDesignPreview() {
               id: "ctx_orders",
               workspaceId: workspace.id,
               sourceKind: "workspace",
-              displayName: "orders.csv",
-              relativePath: "data/orders.csv",
-              mimeType: "text/plain",
+              displayName: "brand-tokens.css",
+              relativePath: "styles/brand-tokens.css",
+              mimeType: "text/css; charset=utf-8",
               sizeBytes: 25400,
               sha256: "preview",
               createdAt: now,
@@ -578,7 +618,11 @@ export function installDesignPreview() {
             sourceKind: "imported",
             displayName: path.split(/[\\/]/).pop(),
             storedPath: path,
-            mimeType: "text/plain",
+            mimeType: String(path).toLowerCase().endsWith(".svg")
+              ? "image/svg+xml; charset=utf-8"
+              : String(path).toLowerCase().endsWith(".css")
+                ? "text/css; charset=utf-8"
+                : "text/plain; charset=utf-8",
             sizeBytes: 1200,
             sha256: `preview_${index}`,
             createdAt: now,
@@ -643,18 +687,18 @@ export function installDesignPreview() {
         case "run_queue":
           return [
             {
-              runId: run.id,
-              name: "订单异常分析",
+              runId: designRun.id,
+              name: "HerDock 产品首页设计",
               workspaceId: workspace.id,
               status: "waiting_approval",
-              meta: `${run.id} · 2/3`,
+              meta: `${designRun.id} · 3/4`,
             },
           ];
         case "artifact_list":
           return [
             {
               id: "artifact_design",
-              runId: run.id,
+              runId: designRun.id,
               workspaceId: workspace.id,
               path: "out/design/herdock-home/index.html",
               entryPath: "out/design/herdock-home/index.html",

@@ -106,7 +106,12 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   const pendingApprovals = state.approvals.length;
   const liveRuns = state.queue.length;
   const readyProviders = state.providers.filter((provider) => provider.available).length;
-  const designArtifacts = state.artifacts.filter((item) => item.kind !== "file").length;
+  const designArtifacts = state.artifacts.filter(
+    (item) =>
+      item.kind !== "file" &&
+      item.path.startsWith("out/design/") &&
+      ["html", "deck-html"].includes(item.renderer || ""),
+  ).length;
   const brandInTitleBar = state.platform.windowControl === "windows";
   const workbench = state.appSurface === "workbench";
   const onView = (view: string) => workbench && state.centerView === view;

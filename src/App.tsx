@@ -61,6 +61,15 @@ const DesignView = lazy(() =>
   import("./components/DesignView").then((module) => ({ default: module.DesignView })),
 );
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])") !==
+      null
+  );
+}
+
 export function App() {
   const {
     centerView,
@@ -100,11 +109,27 @@ export function App() {
     void init();
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
+      if (!mod || e.defaultPrevented) return;
       const key = e.key.toLowerCase();
       if (key === "k") {
         e.preventDefault();
         useWorkbench.getState().togglePalette();
+      } else if (key === "o") {
+        e.preventDefault();
+        void open({ directory: true, multiple: false, title: "打开本地工作区" }).then((path) => {
+          if (typeof path === "string") void useWorkbench.getState().openWorkspacePath(path);
+        });
+      } else if (e.key === ",") {
+        e.preventDefault();
+        useWorkbench.getState().setSettingsOpen(true);
+      } else if (useWorkbench.getState().appSurface !== "workbench") {
+        if (
+          ["t", "s", "n", "`"].includes(key) ||
+          (key === "enter" && !isEditableTarget(e.target))
+        ) {
+          e.preventDefault();
+        }
+        return;
       } else if (key === "t") {
         e.preventDefault();
         useWorkbench.getState().createTab();
@@ -114,17 +139,10 @@ export function App() {
       } else if (key === "n") {
         e.preventDefault();
         void useWorkbench.getState().newSession();
-      } else if (key === "o") {
-        e.preventDefault();
-        void open({ directory: true, multiple: false, title: "打开本地工作区" }).then((path) => {
-          if (typeof path === "string") void useWorkbench.getState().openWorkspacePath(path);
-        });
-      } else if (e.key === "Enter") {
+      } else if (key === "enter") {
+        if (isEditableTarget(e.target)) return;
         e.preventDefault();
         void useWorkbench.getState().sendPrompt();
-      } else if (e.key === ",") {
-        e.preventDefault();
-        useWorkbench.getState().setSettingsOpen(true);
       } else if (e.key === "`") {
         e.preventDefault();
         useWorkbench.getState().setCenterView("terminal");

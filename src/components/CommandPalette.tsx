@@ -7,6 +7,7 @@ import {
   FolderOpen,
   GitDiff,
   ListBullets,
+  Palette,
   PlugsConnected,
   Plus,
   ShieldCheck,
@@ -50,6 +51,8 @@ export function CommandPalette({ onOpenWorkspace }: { onOpenWorkspace: () => voi
       platform: s.platform,
       selectSession: s.selectSession,
       setCenterView: s.setCenterView,
+      setAppSurface: s.setAppSurface,
+      setDesignRoute: s.setDesignRoute,
       setPaletteQuery: s.setPaletteQuery,
       togglePalette: s.togglePalette,
       tree: s.tree,
@@ -111,6 +114,17 @@ export function CommandPalette({ onOpenWorkspace }: { onOpenWorkspace: () => voi
           name: "打开工作区文件夹…",
           hint: `${state.platform.modifierKey} O`,
           run: onOpenWorkspace,
+        },
+        {
+          id: "design-canvas",
+          icon: Palette,
+          tone: "violet",
+          name: "打开设计画布",
+          hint: "",
+          run: () => {
+            state.setAppSurface("design");
+            state.setDesignRoute("canvas");
+          },
         },
         {
           id: "continue",
@@ -208,7 +222,8 @@ export function CommandPalette({ onOpenWorkspace }: { onOpenWorkspace: () => voi
 
   const runItem = (item: PaletteItem) => {
     item.run();
-    state.togglePalette();
+    if (useWorkbench.getState().paletteOpen) state.togglePalette();
+    else state.setPaletteQuery("");
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
