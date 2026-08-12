@@ -301,8 +301,21 @@ impl Database {
 
     pub fn pending_approvals(&self) -> Result<Vec<Approval>> {
         query_all(&self.conn,
-            "SELECT id,run_id,title,detail,risk,kind,scope_key FROM approvals WHERE status='pending' ORDER BY created_at DESC",
-            [], |row| Ok(Approval { approval_id: row.get(0)?, run_id: row.get(1)?, title: row.get(2)?, detail: row.get(3)?, risk: row.get(4)?, kind: row.get(5)?, scope_key: row.get(6)? }))
+            "SELECT id,run_id,title,detail,risk,kind,scope_key,created_at FROM approvals WHERE status='pending' ORDER BY created_at DESC",
+            [], |row| Ok(Approval { approval_id: row.get(0)?, run_id: row.get(1)?, title: row.get(2)?, detail: row.get(3)?, risk: row.get(4)?, kind: row.get(5)?, scope_key: row.get(6)?, created_at: row.get(7)? }))
+    }
+
+    /// The run and scope an approval belongs to, needed to record run-scoped
+    /// allowances before the decision is forwarded to the waiting agent.
+    pub fn approval_target(&self, id: &str) -> Result<Option<(String, Option<String>)>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT run_id,scope_key FROM approvals WHERE id=?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?)
     }
 
     pub fn resolve_approval(&self, id: &str, decision: &str) -> Result<Option<String>> {
@@ -785,6 +798,70 @@ impl Database {
                 used: run_tokens,
                 limit: 200_000,
             },
+        })
+    }
+
+    /// Usage history for the trailing `days` window, plus the equivalent window
+    /// before it so the surface can show a real period-over-period delta.
+    pub fn usage_series(&self, days: i64) -> Result<UsageSeries> {
+        let days = days.clamp(1, 180);
+        let start = (Utc::now() - chrono::Duration::days(days - 1))
+            .format("%Y-%m-%d")
+            .to_string();
+        let previous_start = (Utc::now() - chrono::Duration::days(days * 2 - 1))
+            .format("%Y-%m-%d")
+            .to_string();
+        let rows = query_all(
+            &self.conn,
+            "SELECT day,provider_id,input_tokens,output_tokens,calls FROM usage_daily
+             WHERE day >= ?1 ORDER BY day ASC",
+            [&start],
+            |row| {
+                Ok(UsageDayEntry {
+                    day: row.get(0)?,
+                    provider_id: row.get(1)?,
+                    input_tokens: row.get(2)?,
+                    output_tokens: row.get(3)?,
+                    calls: row.get(4)?,
+                })
+            },
+        )?;
+        let previous_tokens = self.conn.query_row(
+            "SELECT COALESCE(SUM(input_tokens+output_tokens),0) FROM usage_daily WHERE day >= ?1 AND day < ?2",
+            [&previous_start, &start],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let previous_runs = self.conn.query_row(
+            "SELECT COUNT(1) FROM runs WHERE substr(created_at,1,10) >= ?1 AND substr(created_at,1,10) < ?2",
+            [&previous_start, &start],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let top_runs = query_all(
+            &self.conn,
+            "SELECT id,prompt,provider_id,
+                    CAST(COALESCE(json_extract(token_usage,'$.total'),0) AS INTEGER) AS total,
+                    created_at
+             FROM runs
+             WHERE substr(created_at,1,10) >= ?1
+               AND CAST(COALESCE(json_extract(token_usage,'$.total'),0) AS INTEGER) > 0
+             ORDER BY total DESC LIMIT 8",
+            [&start],
+            |row| {
+                let prompt: String = row.get(1)?;
+                Ok(UsageRunEntry {
+                    id: row.get(0)?,
+                    title: prompt.chars().take(48).collect(),
+                    provider_id: row.get(2)?,
+                    tokens: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            },
+        )?;
+        Ok(UsageSeries {
+            days: rows,
+            previous_tokens,
+            previous_runs,
+            top_runs,
         })
     }
 }

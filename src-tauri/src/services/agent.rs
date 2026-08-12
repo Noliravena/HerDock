@@ -178,6 +178,7 @@ pub async fn start(
             let _ = state.mcp.stop(&server_id).await;
         }
         state.runs.lock().await.remove(&task_run.id);
+        state.run_allowances.lock().await.remove(&task_run.id);
     });
     Ok(run)
 }
@@ -1010,6 +1011,15 @@ async fn approve(execution: &RunExecution<'_>, request: ApprovalRequest<'_>) -> 
         risk,
         scope_key,
     } = request;
+    if state
+        .run_allowances
+        .lock()
+        .await
+        .get(&run.id)
+        .is_some_and(|scopes| scopes.contains(scope_key))
+    {
+        return Ok(true);
+    }
     if state.db.lock().await.is_allowed(scope_key)?
         || !policy::requires_approval(
             if kind == "provider_cli" {
@@ -1031,6 +1041,7 @@ async fn approve(execution: &RunExecution<'_>, request: ApprovalRequest<'_>) -> 
         risk: risk.into(),
         kind: kind.into(),
         scope_key: Some(scope_key.into()),
+        created_at: None,
     };
     let (sender, receiver) = oneshot::channel();
     state
@@ -1054,7 +1065,10 @@ async fn approve(execution: &RunExecution<'_>, request: ApprovalRequest<'_>) -> 
     )
     .await?;
     set_status(state, sink, &run.id, "running", None, None).await?;
-    Ok(matches!(decision.as_str(), "approve_once" | "always_allow"))
+    Ok(matches!(
+        decision.as_str(),
+        "approve_once" | "allow_run" | "always_allow"
+    ))
 }
 
 pub async fn emit(

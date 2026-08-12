@@ -157,6 +157,7 @@ pub fn run() {
             runs::policy_rule_delete,
             runs::run_queue,
             runs::usage_get,
+            runs::usage_series,
             integrations::provider_list,
             integrations::provider_profiles,
             integrations::provider_save,

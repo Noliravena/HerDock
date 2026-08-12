@@ -21,22 +21,43 @@ import {
   type Session,
   type Skill,
   type UsageReport,
+  type UsageSeries,
   type UpdateStatus,
   type Workspace,
   type WorkspaceContext,
 } from "../host/client";
 
-type CenterView = "chat" | "code" | "diff" | "activity" | "terminal" | "new-tab" | "browser";
-export type SideTab = "workspace" | "approvals" | "context" | "skills" | "cost";
+/** Views that live inside a session and therefore keep the work-tab strip. */
+export type SessionView = "chat" | "code" | "diff" | "terminal" | "new-tab" | "browser";
+/** Full-window destinations reached from the sidebar; they replace the tab strip. */
+export type ConsoleView = "activity" | "approvals" | "usage" | "skills" | "mcp" | "artifacts";
+type CenterView = SessionView | ConsoleView;
+export type SideTab = "workspace" | "approvals" | "context" | "cost";
+export type ActivityLayout = "list" | "board";
+export type ApprovalTab = "pending" | "rules";
+export type UsageRange = "7d" | "30d" | "mtd";
+
+const CONSOLE_VIEWS: ConsoleView[] = [
+  "activity",
+  "approvals",
+  "usage",
+  "skills",
+  "mcp",
+  "artifacts",
+];
+
+export function isConsoleView(view: string): view is ConsoleView {
+  return (CONSOLE_VIEWS as string[]).includes(view);
+}
 export type AppSurface = "workbench" | "design";
 export type DesignRoute = "home" | "projects" | "systems" | "assets";
 export type GroupMode = "time" | "status" | "name";
 export type SessionKind = "coding" | "analysis" | "mixed";
-export type TabFeature = "agent" | "browser" | "terminal" | "editor" | "activity";
+export type TabFeature = "agent" | "browser" | "terminal" | "editor" | "diff";
 
 export type WorkTab = {
   key: string;
-  view: CenterView;
+  view: SessionView;
   label: string;
   icon: string;
   path?: string;
@@ -74,7 +95,6 @@ export type DesignRunInput = {
 const BASE_TABS: WorkTab[] = [
   { key: "chat", view: "chat", label: "Agent 会话", icon: "", closable: false },
   { key: "diff", view: "diff", label: "差异", icon: "", closable: false },
-  { key: "activity", view: "activity", label: "活动", icon: "", closable: false },
 ];
 
 const DEFAULT_PLATFORM: PlatformInfo = {
@@ -138,8 +158,14 @@ type State = {
   schedules: Schedule[];
   context: WorkspaceContext | null;
   usage: UsageReport | null;
+  usageSeries: UsageSeries | null;
+  usageRange: UsageRange;
   queue: QueueItem[];
   queueOpen: boolean;
+  activityLayout: ActivityLayout;
+  approvalTab: ApprovalTab;
+  selectedApprovalId: string | null;
+  approvalScope: string;
   tabs: WorkTab[];
   activeTab: string;
   centerView: CenterView;
@@ -215,6 +241,12 @@ type State = {
   togglePalette: () => void;
   setPaletteQuery: (query: string) => void;
   toggleQueue: () => void;
+  setActivityLayout: (layout: ActivityLayout) => void;
+  setApprovalTab: (tab: ApprovalTab) => void;
+  selectApproval: (id: string) => void;
+  setApprovalScope: (scope: string) => void;
+  setUsageRange: (range: UsageRange) => Promise<void>;
+  loadUsageSeries: () => Promise<void>;
   cycleGroupMode: () => void;
   toggleWorkspaceCollapsed: (id: string) => void;
   setSettingsOpen: (open: boolean) => void;
@@ -233,9 +265,9 @@ function tabsWithFile(tabs: WorkTab[], path: string): WorkTab[] {
     path,
     closable: true,
   };
-  const activityIndex = tabs.findIndex((item) => item.key === "activity");
+  const diffIndex = tabs.findIndex((item) => item.key === "diff");
   const next = [...tabs];
-  next.splice(activityIndex < 0 ? next.length : activityIndex, 0, tab);
+  next.splice(diffIndex < 0 ? next.length : diffIndex, 0, tab);
   return next;
 }
 
@@ -450,8 +482,14 @@ export const useWorkbench = create<State>((set, get) => ({
   schedules: [],
   context: null,
   usage: null,
+  usageSeries: null,
+  usageRange: "7d",
   queue: [],
   queueOpen: false,
+  activityLayout: "list",
+  approvalTab: "pending",
+  selectedApprovalId: null,
+  approvalScope: "approve_once",
   tabs: BASE_TABS,
   activeTab: "chat",
   centerView: "chat",
@@ -799,6 +837,13 @@ export const useWorkbench = create<State>((set, get) => ({
   },
 
   setCenterView(centerView) {
+    // Console destinations replace the whole centre pane, so they must not steal
+    // the active work tab — the session keeps it and is one click away again.
+    if (isConsoleView(centerView)) {
+      set({ centerView, appSurface: "workbench", paletteOpen: false });
+      if (centerView === "usage") void get().loadUsageSeries();
+      return;
+    }
     const tab = get().tabs.find((item) => item.view === centerView);
     set({
       centerView,
@@ -861,9 +906,13 @@ export const useWorkbench = create<State>((set, get) => ({
       await get().newSession();
       return;
     }
-    if (feature === "activity") {
-      get().closeTab(key);
-      get().setCenterView("activity");
+    if (feature === "diff") {
+      set((state) => ({
+        tabs: state.tabs.map((tab) =>
+          tab.key === key ? { ...tab, view: "diff", label: "差异", icon: "", closable: true } : tab,
+        ),
+        centerView: "diff",
+      }));
       return;
     }
     const id = tabId(feature);
@@ -1134,7 +1183,11 @@ export const useWorkbench = create<State>((set, get) => ({
   async resolveApproval(id, decision) {
     try {
       await hostApi.resolveApproval(id, decision);
-      set((state) => ({ approvals: state.approvals.filter((item) => item.approvalId !== id) }));
+      set((state) => ({
+        approvals: state.approvals.filter((item) => item.approvalId !== id),
+        selectedApprovalId: state.selectedApprovalId === id ? null : state.selectedApprovalId,
+        approvalScope: state.selectedApprovalId === id ? "approve_once" : state.approvalScope,
+      }));
     } catch (error) {
       set({ error: String(error) });
     }
@@ -1304,6 +1357,30 @@ export const useWorkbench = create<State>((set, get) => ({
   },
   toggleQueue() {
     set((state) => ({ queueOpen: !state.queueOpen }));
+  },
+  setActivityLayout(activityLayout) {
+    set({ activityLayout });
+  },
+  setApprovalTab(approvalTab) {
+    set({ approvalTab });
+  },
+  selectApproval(selectedApprovalId) {
+    set({ selectedApprovalId, approvalScope: "approve_once" });
+  },
+  setApprovalScope(approvalScope) {
+    set({ approvalScope });
+  },
+  async setUsageRange(usageRange) {
+    set({ usageRange });
+    await get().loadUsageSeries();
+  },
+  async loadUsageSeries() {
+    const days = { "7d": 7, "30d": 30, mtd: new Date().getDate() }[get().usageRange];
+    try {
+      set({ usageSeries: await hostApi.usageSeries(days) });
+    } catch (error) {
+      set({ error: String(error) });
+    }
   },
   cycleGroupMode() {
     set((state) => ({

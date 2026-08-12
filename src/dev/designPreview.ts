@@ -281,20 +281,35 @@ export function installDesignPreview() {
     (command, payload = {}) => {
       const args = payload as Record<string, unknown>;
       switch (command) {
+        // ?design-preview&platform=mac renders the macOS chrome instead.
         case "app_platform":
-          return {
-            os: "windows",
-            arch: "x86_64",
-            desktop: true,
-            dataDir: "C:\\Users\\developer\\AppData\\Roaming\\HerDock",
-            pathSeparator: "\\",
-            modifierKey: "Ctrl",
-            commandHint: "Ctrl K",
-            newHint: "Ctrl N",
-            submitHint: "Ctrl ↵",
-            defaultShell: "PowerShell",
-            windowControl: "windows",
-          };
+          return new URLSearchParams(window.location.search).get("platform") === "mac"
+            ? {
+                os: "macos",
+                arch: "aarch64",
+                desktop: true,
+                dataDir: "/Users/developer/Library/Application Support/HerDock",
+                pathSeparator: "/",
+                modifierKey: "⌘",
+                commandHint: "⌘K",
+                newHint: "⌘N",
+                submitHint: "⌘↵",
+                defaultShell: "zsh",
+                windowControl: "macos",
+              }
+            : {
+                os: "windows",
+                arch: "x86_64",
+                desktop: true,
+                dataDir: "C:\\Users\\developer\\AppData\\Roaming\\HerDock",
+                pathSeparator: "\\",
+                modifierKey: "Ctrl",
+                commandHint: "Ctrl K",
+                newHint: "Ctrl N",
+                submitHint: "Ctrl ↵",
+                defaultShell: "PowerShell",
+                windowControl: "windows",
+              };
         case "settings_get":
           return {
             defaultProvider: "codex",
@@ -481,8 +496,29 @@ export function installDesignPreview() {
               title: "写入工作区文件",
               detail: "src/rules/order-audit.ts",
               risk: "medium",
-              kind: "write_path",
+              kind: "workspace_write",
               scopeKey: "write_file:src/rules/order-audit.ts",
+              createdAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+            },
+            {
+              approvalId: "approval_preview_2",
+              runId: run.id,
+              title: "执行 shell 命令",
+              detail: "pnpm test --filter order-audit",
+              risk: "high",
+              kind: "shell",
+              scopeKey: "run_command:pnpm test",
+              createdAt: new Date(Date.now() - 42 * 1000).toISOString(),
+            },
+            {
+              approvalId: "approval_preview_3",
+              runId: run.id,
+              title: "访问外部域名",
+              detail: "docs.internal.example.com/order-spec",
+              risk: "low",
+              kind: "network",
+              scopeKey: "network:docs.internal.example.com",
+              createdAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
             },
           ];
         case "skill_list":
@@ -554,6 +590,56 @@ export function installDesignPreview() {
             buckets: [{ key: "codex", label: "Codex CLI", tokens: 5440, runs: 1, calls: 1 }],
             context: { used: 4260, limit: 32000 },
           };
+        case "usage_series": {
+          const providers = ["codex", "claude", "openai"];
+          const days: {
+            day: string;
+            providerId: string;
+            inputTokens: number;
+            outputTokens: number;
+            calls: number;
+          }[] = [];
+          for (let back = 6; back >= 0; back -= 1) {
+            const day = new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
+            providers.forEach((providerId, index) => {
+              days.push({
+                day,
+                providerId,
+                inputTokens: 18000 - back * 900 - index * 4200,
+                outputTokens: 4200 - back * 180 - index * 700,
+                calls: 12 - back - index * 3,
+              });
+            });
+          }
+          return {
+            days,
+            previousTokens: 268000,
+            previousRuns: 41,
+            topRuns: [
+              {
+                id: "RUN-311",
+                title: "Q3 投放渠道 ROI 复盘",
+                providerId: "openai",
+                tokens: 102000,
+                createdAt: now,
+              },
+              {
+                id: run.id,
+                title: run.prompt,
+                providerId: "codex",
+                tokens: 18600,
+                createdAt: now,
+              },
+              {
+                id: "RUN-330",
+                title: "供应商合同风险初筛",
+                providerId: "claude",
+                tokens: 14200,
+                createdAt: now,
+              },
+            ],
+          };
+        }
         case "run_queue":
           return [
             {
