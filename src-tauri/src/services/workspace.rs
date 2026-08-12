@@ -492,6 +492,7 @@ fn design_artifact(
     if !entry.starts_with(&package_dir) || !package_dir.starts_with(root.join("out")) {
         return Ok(None);
     }
+    let package_relative = slash(package_dir.strip_prefix(&root)?.to_string_lossy());
     let relative = slash(entry.strip_prefix(&root)?.to_string_lossy());
     let ext = entry
         .extension()
@@ -503,7 +504,10 @@ fn design_artifact(
         return Ok(None);
     }
     Ok(Some(Artifact {
-        id: stable_artifact_id(workspace_id, &manifest.id),
+        id: stable_artifact_id(
+            workspace_id,
+            &format!("design-package:{package_relative}:{}", manifest.id),
+        ),
         run_id: run_id.map(str::to_string),
         workspace_id: workspace_id.into(),
         path: relative.clone(),
@@ -641,5 +645,39 @@ mod tests {
         assert_eq!(first[0].name, "Demo");
         assert_eq!(first[0].kind, "html");
         assert_eq!(first[0].id, second[0].id);
+    }
+
+    #[test]
+    fn scopes_manifest_identity_to_its_package_path() {
+        let dir = tempfile::tempdir().unwrap();
+        for package_name in ["alpha", "beta"] {
+            let package = dir.path().join("out/design").join(package_name);
+            fs::create_dir_all(&package).unwrap();
+            fs::write(
+                package.join("index.html"),
+                format!("<h1>{package_name}</h1>"),
+            )
+            .unwrap();
+            fs::write(
+                package.join("artifact.json"),
+                r#"{"schemaVersion":"herdock.design-artifact/v1","id":"shared-id","title":"Demo","kind":"html","renderer":"html","entry":"index.html","exports":["html"],"status":"complete"}"#,
+            )
+            .unwrap();
+        }
+
+        let first = scan_artifacts(dir.path(), "workspace", Some("run_1")).unwrap();
+        let second = scan_artifacts(dir.path(), "workspace", Some("run_2")).unwrap();
+        assert_eq!(first.len(), 2);
+        assert_ne!(first[0].id, first[1].id);
+
+        let first_ids = first
+            .into_iter()
+            .map(|artifact| (artifact.path, artifact.id))
+            .collect::<HashMap<_, _>>();
+        let second_ids = second
+            .into_iter()
+            .map(|artifact| (artifact.path, artifact.id))
+            .collect::<HashMap<_, _>>();
+        assert_eq!(first_ids, second_ids);
     }
 }
