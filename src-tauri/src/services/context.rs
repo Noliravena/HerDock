@@ -10,6 +10,14 @@ use crate::{domain::models::ContextItem, infra::database::Database, services::wo
 
 const MAX_TEXT_ATTACHMENT_BYTES: u64 = 2 * 1024 * 1024;
 
+fn text_mime_for_path(path: &Path) -> &'static str {
+    match path.extension().and_then(|value| value.to_str()) {
+        Some(extension) if extension.eq_ignore_ascii_case("css") => "text/css; charset=utf-8",
+        Some(extension) if extension.eq_ignore_ascii_case("svg") => "image/svg+xml; charset=utf-8",
+        _ => "text/plain; charset=utf-8",
+    }
+}
+
 pub fn attach_workspace_file(
     db: &Database,
     workspace_id: &str,
@@ -41,7 +49,7 @@ pub fn attach_workspace_file(
             .to_string(),
         relative_path: Some(relative.replace('\\', "/")),
         stored_path: None,
-        mime_type: "text/plain; charset=utf-8".into(),
+        mime_type: text_mime_for_path(Path::new(relative)).into(),
         size_bytes: file.content.len() as i64,
         sha256: digest,
         created_at: chrono::Utc::now().to_rfc3339(),
@@ -98,7 +106,7 @@ pub fn import_external_file(
         display_name: name,
         relative_path: None,
         stored_path: Some(destination.to_string_lossy().to_string()),
-        mime_type: "text/plain; charset=utf-8".into(),
+        mime_type: text_mime_for_path(&source).into(),
         size_bytes: bytes.len() as i64,
         sha256: digest,
         created_at: chrono::Utc::now().to_rfc3339(),
@@ -172,21 +180,71 @@ mod tests {
     }
 
     #[test]
+    fn css_and_svg_mime_types_are_consistent_for_workspace_and_external_text() {
+        let app_data = tempfile::tempdir().unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        let source = tempfile::tempdir().unwrap();
+        let db = database(workspace.path());
+
+        fs::write(
+            workspace.path().join("theme.CSS"),
+            ":root { --accent: #3b5ba5; }",
+        )
+        .unwrap();
+        fs::write(
+            workspace.path().join("mark.svg"),
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>"#,
+        )
+        .unwrap();
+        fs::write(workspace.path().join("notes.md"), "plain text").unwrap();
+
+        let workspace_css =
+            attach_workspace_file(&db, "ws_test", workspace.path(), "theme.CSS").unwrap();
+        let workspace_svg =
+            attach_workspace_file(&db, "ws_test", workspace.path(), "mark.svg").unwrap();
+        let workspace_text =
+            attach_workspace_file(&db, "ws_test", workspace.path(), "notes.md").unwrap();
+        assert_eq!(workspace_css.mime_type, "text/css; charset=utf-8");
+        assert_eq!(workspace_svg.mime_type, "image/svg+xml; charset=utf-8");
+        assert_eq!(workspace_text.mime_type, "text/plain; charset=utf-8");
+
+        let css_path = source.path().join("external.css");
+        let svg_path = source.path().join("external.SVG");
+        fs::write(&css_path, "body { color: #1c1b18; }").unwrap();
+        fs::write(
+            &svg_path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>"#,
+        )
+        .unwrap();
+        let external_css =
+            import_external_file(&db, app_data.path(), "ws_test", &css_path).unwrap();
+        let external_svg =
+            import_external_file(&db, app_data.path(), "ws_test", &svg_path).unwrap();
+        assert_eq!(external_css.mime_type, "text/css; charset=utf-8");
+        assert_eq!(external_svg.mime_type, "image/svg+xml; charset=utf-8");
+    }
+
+    #[test]
     fn external_text_is_deduplicated_and_binary_is_rejected() {
         let app_data = tempfile::tempdir().unwrap();
         let workspace = tempfile::tempdir().unwrap();
         let source = tempfile::tempdir().unwrap();
         let db = database(workspace.path());
-        let text_path = source.path().join("notes.txt");
-        fs::write(&text_path, "same context").unwrap();
+        let text_path = source.path().join("theme.css");
+        fs::write(&text_path, "body { color: black; }").unwrap();
         let first = import_external_file(&db, app_data.path(), "ws_test", &text_path).unwrap();
         let second = import_external_file(&db, app_data.path(), "ws_test", &text_path).unwrap();
         assert_eq!(first.id, second.id);
+        assert_eq!(first.mime_type, "text/css; charset=utf-8");
+        assert_eq!(second.mime_type, first.mime_type);
         assert!(Path::new(first.stored_path.as_deref().unwrap()).is_file());
 
         let binary_path = source.path().join("binary.dat");
         fs::write(&binary_path, [0, 1, 2, 3]).unwrap();
         assert!(import_external_file(&db, app_data.path(), "ws_test", &binary_path).is_err());
+
+        fs::write(workspace.path().join("binary.svg"), [0, 1, 2, 3]).unwrap();
+        assert!(attach_workspace_file(&db, "ws_test", workspace.path(), "binary.svg").is_err());
     }
 
     #[test]
