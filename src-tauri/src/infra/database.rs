@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -548,16 +548,33 @@ impl Database {
     }
 
     pub fn replace_artifacts(&self, workspace_id: &str, artifacts: &[Artifact]) -> Result<()> {
-        self.conn.execute(
+        let transaction = self.conn.unchecked_transaction()?;
+        let existing = {
+            let mut stmt = transaction
+                .prepare("SELECT id,run_id,created_at FROM artifacts WHERE workspace_id=?1")?;
+            let rows = stmt.query_map([workspace_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    (row.get::<_, Option<String>>(1)?, row.get::<_, String>(2)?),
+                ))
+            })?;
+            rows.collect::<rusqlite::Result<HashMap<_, _>>>()?
+        };
+        transaction.execute(
             "DELETE FROM artifacts WHERE workspace_id=?1",
             [workspace_id],
         )?;
         for artifact in artifacts {
-            self.conn.execute(
+            let (run_id, created_at) = existing
+                .get(&artifact.id)
+                .cloned()
+                .unwrap_or_else(|| (artifact.run_id.clone(), artifact.created_at.clone()));
+            transaction.execute(
                 "INSERT INTO artifacts(id,run_id,workspace_id,path,name,ext,size_bytes,kind,renderer,entry_path,status,manifest_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
-                params![artifact.id, artifact.run_id, artifact.workspace_id, artifact.path, artifact.name, artifact.ext, artifact.size_bytes, artifact.kind, artifact.renderer, artifact.entry_path, artifact.status, artifact.manifest.to_string(), artifact.created_at],
+                params![artifact.id, run_id, artifact.workspace_id, artifact.path, artifact.name, artifact.ext, artifact.size_bytes, artifact.kind, artifact.renderer, artifact.entry_path, artifact.status, artifact.manifest.to_string(), created_at],
             )?;
         }
+        transaction.commit()?;
         Ok(())
     }
 
@@ -1024,6 +1041,67 @@ fn apply_migration(conn: &mut Connection, version: &str, sql: &str) -> Result<()
 mod tests {
     use super::*;
 
+    fn seed_artifact_runs(db: &Database, root: &Path) {
+        let stamp = "2026-08-12T00:00:00Z".to_string();
+        db.upsert_workspace(&Workspace {
+            id: "workspace_artifacts".into(),
+            name: "Artifacts".into(),
+            root_path: root.to_string_lossy().into_owned(),
+            branch: None,
+            dirty_summary: None,
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        db.insert_session(&Session {
+            id: "session_artifacts".into(),
+            workspace_id: "workspace_artifacts".into(),
+            title: "Artifact session".into(),
+            kind: "mixed".into(),
+            provider_id: "codex".into(),
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        for run_id in ["run_original", "run_later"] {
+            db.insert_run(&Run {
+                id: run_id.into(),
+                session_id: "session_artifacts".into(),
+                workspace_id: "workspace_artifacts".into(),
+                provider_id: "codex".into(),
+                model: None,
+                status: "completed".into(),
+                prompt: "test artifacts".into(),
+                plan_progress: None,
+                error_message: None,
+                token_usage: json!({}),
+                created_at: stamp.clone(),
+                updated_at: stamp.clone(),
+                started_at: None,
+                finished_at: None,
+            })
+            .unwrap();
+        }
+    }
+
+    fn artifact(id: &str, run_id: &str, name: &str, created_at: &str) -> Artifact {
+        Artifact {
+            id: id.into(),
+            run_id: Some(run_id.into()),
+            workspace_id: "workspace_artifacts".into(),
+            path: format!("out/design/{id}/index.html"),
+            name: name.into(),
+            ext: "html".into(),
+            size_bytes: Some(42),
+            kind: "html".into(),
+            renderer: Some("html".into()),
+            entry_path: Some(format!("out/design/{id}/index.html")),
+            status: "complete".into(),
+            manifest: json!({"id": id}),
+            created_at: created_at.into(),
+        }
+    }
+
     #[test]
     fn creates_schema_and_marks_runs_interrupted() {
         let dir = tempfile::tempdir().unwrap();
@@ -1145,5 +1223,81 @@ mod tests {
         assert_eq!(oldest.events.len(), 200);
         assert_eq!(oldest.events.first().unwrap().seq, 1);
         assert_eq!(oldest.events.last().unwrap().seq, 200);
+    }
+
+    #[test]
+    fn artifact_refresh_preserves_provenance_and_creation_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(&dir.path().join("artifacts.db")).unwrap();
+        seed_artifact_runs(&db, dir.path());
+
+        db.replace_artifacts(
+            "workspace_artifacts",
+            &[artifact(
+                "artifact_existing",
+                "run_original",
+                "Original",
+                "2026-08-10T10:00:00Z",
+            )],
+        )
+        .unwrap();
+        db.replace_artifacts(
+            "workspace_artifacts",
+            &[
+                artifact(
+                    "artifact_existing",
+                    "run_later",
+                    "Updated metadata",
+                    "2026-08-12T10:00:00Z",
+                ),
+                artifact("artifact_new", "run_later", "New", "2026-08-12T11:00:00Z"),
+            ],
+        )
+        .unwrap();
+
+        let artifacts = db.list_artifacts("workspace_artifacts").unwrap();
+        let existing = artifacts
+            .iter()
+            .find(|item| item.id == "artifact_existing")
+            .unwrap();
+        assert_eq!(existing.name, "Updated metadata");
+        assert_eq!(existing.run_id.as_deref(), Some("run_original"));
+        assert_eq!(existing.created_at, "2026-08-10T10:00:00Z");
+        let new = artifacts
+            .iter()
+            .find(|item| item.id == "artifact_new")
+            .unwrap();
+        assert_eq!(new.run_id.as_deref(), Some("run_later"));
+        assert_eq!(new.created_at, "2026-08-12T11:00:00Z");
+    }
+
+    #[test]
+    fn artifact_replace_rolls_back_as_one_transaction() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(&dir.path().join("artifact-rollback.db")).unwrap();
+        seed_artifact_runs(&db, dir.path());
+        let original = artifact(
+            "artifact_original",
+            "run_original",
+            "Keep me",
+            "2026-08-10T10:00:00Z",
+        );
+        db.replace_artifacts("workspace_artifacts", std::slice::from_ref(&original))
+            .unwrap();
+
+        let duplicate = artifact(
+            "artifact_duplicate",
+            "run_later",
+            "Duplicate",
+            "2026-08-12T10:00:00Z",
+        );
+        assert!(db
+            .replace_artifacts("workspace_artifacts", &[duplicate.clone(), duplicate],)
+            .is_err());
+
+        let artifacts = db.list_artifacts("workspace_artifacts").unwrap();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts[0].id, original.id);
+        assert_eq!(artifacts[0].name, "Keep me");
     }
 }
