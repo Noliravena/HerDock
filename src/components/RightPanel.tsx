@@ -8,7 +8,6 @@ import {
   MagnifyingGlass,
   Paperclip,
   PencilSimple,
-  Power,
   Trash,
   X,
 } from "@phosphor-icons/react";
@@ -19,26 +18,14 @@ import { hostApi, type SearchResult } from "../host/client";
 import { useWorkbench, type SideTab } from "../store/workbench";
 import { FileTree } from "./FileTree";
 
+/* 技能 and 本地 MCP have their own full-window destinations now, so the side
+   panel keeps only what belongs next to a live session. */
 const SIDE_TABS: [SideTab, string][] = [
   ["workspace", "工作区"],
   ["approvals", "审批"],
   ["context", "上下文"],
-  ["skills", "技能"],
   ["cost", "用量"],
 ];
-
-const SKILL_STATUS: Record<string, string> = {
-  enabled: "已启用",
-  readonly: "只读",
-  limited: "受限",
-  disabled: "已停用",
-};
-
-const CONNECTOR_STATUS: Record<string, string> = {
-  connected: "已连接",
-  expired: "已过期",
-  disconnected: "未连接",
-};
 
 export function RightPanel() {
   const { approvalCount, setSideTab, sideTab } = useWorkbench(
@@ -70,7 +57,6 @@ export function RightPanel() {
       {sideTab === "workspace" && <WorkspaceTab />}
       {sideTab === "approvals" && <ApprovalsTab />}
       {sideTab === "context" && <ContextTab />}
-      {sideTab === "skills" && <SkillsTab />}
       {sideTab === "cost" && <CostTab />}
     </aside>
   );
@@ -208,21 +194,11 @@ function WorkspaceTab() {
 }
 
 function ApprovalsTab() {
-  const {
-    approvals,
-    connectors,
-    resolveApproval,
-    selectedMcpIds,
-    toggleMcpRuntime,
-    toggleMcpSelection,
-  } = useWorkbench(
+  const { approvals, resolveApproval, setCenterView } = useWorkbench(
     useShallow((state) => ({
       approvals: state.approvals,
-      connectors: state.connectors,
       resolveApproval: state.resolveApproval,
-      selectedMcpIds: state.selectedMcpIds,
-      toggleMcpRuntime: state.toggleMcpRuntime,
-      toggleMcpSelection: state.toggleMcpSelection,
+      setCenterView: state.setCenterView,
     })),
   );
   return (
@@ -247,9 +223,10 @@ function ApprovalsTab() {
             </button>
             <button
               type="button"
-              onClick={() => void resolveApproval(a.approvalId, "always_allow")}
+              onClick={() => void resolveApproval(a.approvalId, "allow_run")}
+              title="当前运行结束前不再询问相同动作"
             >
-              始终允许
+              本次运行
             </button>
             <button type="button" onClick={() => void resolveApproval(a.approvalId, "deny")}>
               拒绝
@@ -257,44 +234,15 @@ function ApprovalsTab() {
           </div>
         </div>
       ))}
-      {approvals.length > 0 && (
-        <div className="side-note">「始终允许」会写进工作区规则，之后同类动作不再询问。</div>
-      )}
-
-      <div>
-        <div className="side-title">本地 MCP</div>
-        <div className="panel-card">
-          {connectors.map((c) => (
-            <div className="conn-row" key={c.id}>
-              <input
-                type="checkbox"
-                checked={selectedMcpIds.includes(c.id)}
-                disabled={c.status !== "ready" && c.status !== "connected"}
-                onChange={() => toggleMcpSelection(c.id)}
-                title="用于本次运行"
-              />
-              <span>{c.name}</span>
-              <span className="val">{c.scopes.join(" / ") || "—"}</span>
-              <span className={`st ${c.status}`}>{CONNECTOR_STATUS[c.status] || c.status}</span>
-              <button
-                type="button"
-                className="icon-btn small"
-                title={c.status === "ready" || c.status === "connected" ? "停止" : "启动"}
-                onClick={() =>
-                  void toggleMcpRuntime(c.id, c.status !== "ready" && c.status !== "connected")
-                }
-              >
-                <Power size={12} />
-              </button>
-            </div>
-          ))}
-          {!connectors.length && (
-            <div className="empty-hint">尚未配置本地 MCP 服务，可在设置中添加。</div>
-          )}
+      {approvals.length > 0 ? (
+        <div className="side-note">
+          需要写入持久规则或查看完整 payload，去
+          <button type="button" className="link" onClick={() => setCenterView("approvals")}>
+            审批中心
+          </button>
+          。
         </div>
-      </div>
-
-      {!approvals.length && (
+      ) : (
         <div className="side-note">当前没有待审批的动作。风险动作会在这里等待你确认。</div>
       )}
     </div>
@@ -424,46 +372,6 @@ function ContextTab() {
             <i style={{ width: `${pct}%` }} />
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function SkillsTab() {
-  const { selectedSkillIds, skills, toggleSkill } = useWorkbench(
-    useShallow((state) => ({
-      selectedSkillIds: state.selectedSkillIds,
-      skills: state.skills,
-      toggleSkill: state.toggleSkill,
-    })),
-  );
-  return (
-    <div className="side-body padded">
-      <div className="stack">
-        {skills.map((sk) => (
-          <button
-            type="button"
-            className={`skill-card selectable ${selectedSkillIds.includes(sk.id) ? "selected" : ""}`}
-            key={sk.id}
-            onClick={() => toggleSkill(sk.id)}
-          >
-            <div className="skill-head">
-              <input
-                type="checkbox"
-                tabIndex={-1}
-                readOnly
-                checked={selectedSkillIds.includes(sk.id)}
-              />
-              <span className="skill-glyph">{sk.glyph}</span>
-              <span className="skill-name">{sk.name}</span>
-              <span className={`st ${sk.status}`}>{SKILL_STATUS[sk.status] || sk.status}</span>
-            </div>
-            <div className="skill-desc">{sk.detail}</div>
-          </button>
-        ))}
-        {!skills.length && (
-          <div className="empty-hint">在 .agents/skills 或 HerDock 全局目录中添加 SKILL.md。</div>
-        )}
       </div>
     </div>
   );

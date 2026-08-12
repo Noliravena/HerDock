@@ -1,4 +1,4 @@
-import { Browser, ChatCircleDots, Code, ListBullets, TerminalWindow } from "@phosphor-icons/react";
+import { Browser, ChatCircleDots, Code, GitDiff, TerminalWindow } from "@phosphor-icons/react";
 import { useWorkbench, type TabFeature } from "../store/workbench";
 
 const FEATURES: {
@@ -12,7 +12,7 @@ const FEATURES: {
   { id: "agent", label: "Agent 会话", meta: "AGENT", icon: ChatCircleDots, workspace: true },
   { id: "terminal", label: "终端", meta: "PTY", icon: TerminalWindow, workspace: true },
   { id: "editor", label: "编辑器", meta: "CODE", icon: Code, workspace: true },
-  { id: "activity", label: "活动", meta: "RUNS", icon: ListBullets },
+  { id: "diff", label: "差异", meta: "GIT", icon: GitDiff, workspace: true },
 ];
 
 export function NewTabPage({ tabKey }: { tabKey: string }) {

@@ -1,4 +1,3 @@
-import { APP_DISPLAY_NAME } from "@her-dock/shared";
 import { useShallow } from "zustand/react/shallow";
 import { useWorkbench, type GroupMode } from "../store/workbench";
 import type { Run, Session, Workspace } from "../host/client";
@@ -11,14 +10,12 @@ import {
   IconFile,
   IconFolderOpen,
   IconGear,
-  IconMenu,
-  IconPanelRight,
-  IconPlus,
   IconSearch,
+  IconShield,
   IconSkills,
+  IconUsage,
 } from "./Icons";
 import { BrandMark } from "./BrandMark";
-import { Popover } from "./Popover";
 
 const GROUP_LABEL: Record<GroupMode, string> = {
   time: "按时间",
@@ -47,9 +44,24 @@ function accentFor(id: string): string {
   return WS_ACCENTS[hash % WS_ACCENTS.length];
 }
 
-/** Latest run status per session, used for the coloured dots in the tree. */
-function statusOf(runs: Run[], sessionId: string): string {
-  return runs.find((r) => r.sessionId === sessionId)?.status || "idle";
+/** Latest run for a session, used for the coloured dot and the trailing time. */
+function latestRun(runs: Run[], sessionId: string): Run | undefined {
+  return runs.find((r) => r.sessionId === sessionId);
+}
+
+/** Short time stamp for a session row — 14:32 today, 8月4日 for older days. */
+function sessionStamp(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  return sameDay
+    ? d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    : `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
@@ -76,13 +88,11 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       setCenterView: s.setCenterView,
       setAppSurface: s.setAppSurface,
       setSettingsOpen: s.setSettingsOpen,
-      setSideTab: s.setSideTab,
-      sideTab: s.sideTab,
+      settingsOpen: s.settingsOpen,
       skills: s.skills,
-      rightOpen: s.rightOpen,
       togglePalette: s.togglePalette,
-      toggleRight: s.toggleRight,
       toggleWorkspaceCollapsed: s.toggleWorkspaceCollapsed,
+      updateStatus: s.updateStatus,
       workspace: s.workspace,
       workspaces: s.workspaces,
       workspaceSessions: s.workspaceSessions,
@@ -96,7 +106,10 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   const pendingApprovals = state.approvals.length;
   const liveRuns = state.queue.length;
   const readyProviders = state.providers.filter((provider) => provider.available).length;
+  const designArtifacts = state.artifacts.filter((item) => item.kind !== "file").length;
   const brandInTitleBar = state.platform.windowControl === "windows";
+  const workbench = state.appSurface === "workbench";
+  const onView = (view: string) => workbench && state.centerView === view;
 
   const knownRuns = state.allRuns.length ? state.allRuns : state.runs;
   const sortSessions = (list: Session[]): Session[] => {
@@ -106,8 +119,8 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
     if (state.groupMode === "status") {
       return copy.sort(
         (a, b) =>
-          (STATUS_RANK[statusOf(knownRuns, a.id)] ?? 9) -
-          (STATUS_RANK[statusOf(knownRuns, b.id)] ?? 9),
+          (STATUS_RANK[latestRun(knownRuns, a.id)?.status || ""] ?? 9) -
+          (STATUS_RANK[latestRun(knownRuns, b.id)?.status || ""] ?? 9),
       );
     }
     return copy;
@@ -125,123 +138,18 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
         </div>
       )}
 
-      {/* The Windows caption bar already carries the mark and product name, so the
-          sidebar only needs the menu there. */}
-      <header className={`brand ${brandInTitleBar ? "menu-only" : ""}`}>
-        {!brandInTitleBar && (
-          <>
-            <BrandMark className="logo" />
-            <span className="brand-text">
-              <span className="brand-title">HerDock</span>
-              <span className="brand-sub">行知 · 本地工作台</span>
-            </span>
-          </>
-        )}
-        <Popover
-          className={`sidebar-menu ${brandInTitleBar ? "" : "push"}`}
-          side="bottom"
-          align={brandInTitleBar ? "start" : "end"}
-          title="菜单"
-          label={<IconMenu />}
-        >
-          {(close) => (
-            <div className="pop-scroll">
-              <div className="pop-section">
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    state.setAppSurface("design");
-                  }}
-                >
-                  <IconDesign />
-                  <span>设计</span>
-                </button>
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    state.togglePalette();
-                  }}
-                >
-                  <IconSearch />
-                  <span>搜索 / 命令面板</span>
-                  <kbd>{state.platform.commandHint}</kbd>
-                </button>
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    void state.newSession();
-                  }}
-                >
-                  <IconCompose />
-                  <span>新建会话</span>
-                  <kbd>{state.platform.newHint}</kbd>
-                </button>
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    onOpenWorkspace();
-                  }}
-                >
-                  <IconFolderOpen />
-                  <span>打开工作区文件夹…</span>
-                  <kbd>{state.platform.modifierKey} O</kbd>
-                </button>
-              </div>
+      {/* The Windows caption bar already carries the mark and product name. */}
+      {!brandInTitleBar && (
+        <header className="brand" data-tauri-drag-region>
+          <BrandMark className="logo" />
+          <span className="brand-text">
+            <span className="brand-title">HerDock</span>
+            <span className="brand-sub">行知 · 本地工作台</span>
+          </span>
+        </header>
+      )}
 
-              <div className="pop-section">
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    state.setCenterView("activity");
-                  }}
-                >
-                  <IconActivity />
-                  <span>活动</span>
-                  {liveRuns > 0 && <kbd>{liveRuns}</kbd>}
-                </button>
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    state.toggleRight();
-                  }}
-                >
-                  <IconPanelRight />
-                  <span>{state.rightOpen ? "隐藏右侧栏" : "显示右侧栏"}</span>
-                </button>
-              </div>
-
-              <div className="pop-section">
-                <button
-                  type="button"
-                  className="pop-item"
-                  onClick={() => {
-                    close();
-                    state.setSettingsOpen(true);
-                  }}
-                >
-                  <IconGear />
-                  <span>设置</span>
-                  <kbd>{state.platform.modifierKey} ,</kbd>
-                </button>
-              </div>
-            </div>
-          )}
-        </Popover>
-      </header>
-
-      <nav className="nav-group">
+      <nav className={`nav-group ${brandInTitleBar ? "top-pad" : ""}`}>
         <button type="button" className="nav-item" onClick={() => void state.newSession()}>
           <span className="nav-glyph">
             <IconCompose />
@@ -258,15 +166,11 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             <IconDesign />
           </span>
           <span className="nav-text">设计</span>
-          {state.artifacts.filter((item) => item.kind !== "file").length > 0 && (
-            <span className="nav-badge">
-              {state.artifacts.filter((item) => item.kind !== "file").length}
-            </span>
-          )}
+          {designArtifacts > 0 && <span className="nav-badge">{designArtifacts}</span>}
         </button>
         <button
           type="button"
-          className={`nav-item ${state.centerView === "activity" ? "active" : ""}`}
+          className={`nav-item ${onView("activity") ? "active" : ""}`}
           onClick={() => state.setCenterView("activity")}
         >
           <span className="nav-glyph">
@@ -274,6 +178,31 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
           </span>
           <span className="nav-text">活动</span>
           {liveRuns > 0 && <span className="nav-badge warn">{liveRuns}</span>}
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${onView("approvals") ? "active" : ""}`}
+          onClick={() => state.setCenterView("approvals")}
+        >
+          <span className="nav-glyph">
+            <IconShield />
+          </span>
+          <span className="nav-text">审批中心</span>
+          {pendingApprovals > 0 && <span className="nav-badge alert">{pendingApprovals}</span>}
+        </button>
+        <button type="button" className="nav-item" onClick={state.togglePalette}>
+          <span className="nav-glyph">
+            <IconSearch size={16} />
+          </span>
+          <span className="nav-text">搜索</span>
+          <span className="nav-kbd">{state.platform.commandHint}</span>
+        </button>
+        <button type="button" className="nav-item" onClick={onOpenWorkspace}>
+          <span className="nav-glyph">
+            <IconFolderOpen size={16} />
+          </span>
+          <span className="nav-text">打开文件夹</span>
+          <span className="nav-kbd">{state.platform.modifierKey} O</span>
         </button>
       </nav>
 
@@ -287,9 +216,6 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
         >
           {GROUP_LABEL[state.groupMode]}
           <IconChevron size={9} />
-        </button>
-        <button type="button" className="icon-btn" onClick={onOpenWorkspace} title="打开文件夹">
-          <IconPlus size={11} />
         </button>
       </div>
 
@@ -324,18 +250,24 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
               </button>
               {!collapsed && sessions.length > 0 && (
                 <div className="ws-sessions">
-                  {sessions.map((sess) => (
-                    <button
-                      key={sess.id}
-                      type="button"
-                      className={`session-row ${state.session?.id === sess.id ? "active" : ""}`}
-                      onClick={() => void state.selectSession(sess.id)}
-                      title={sess.title}
-                    >
-                      <span className={`run-dot ${statusOf(knownRuns, sess.id)}`} />
-                      <span className="name">{sess.title}</span>
-                    </button>
-                  ))}
+                  {sessions.map((sess) => {
+                    const run = latestRun(knownRuns, sess.id);
+                    return (
+                      <button
+                        key={sess.id}
+                        type="button"
+                        className={`session-row ${state.session?.id === sess.id ? "active" : ""}`}
+                        onClick={() => void state.selectSession(sess.id)}
+                        title={sess.title}
+                      >
+                        <span className={`run-dot ${run?.status || "idle"}`} />
+                        <span className="name">{sess.title}</span>
+                        <span className="session-time">
+                          {sessionStamp(run?.updatedAt || sess.updatedAt || sess.createdAt)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               {!collapsed && !sessions.length && (
@@ -350,7 +282,7 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
           <div className="ws-blank">
             <p>还没有工作区</p>
             <button type="button" className="ghost-btn" onClick={onOpenWorkspace}>
-              <IconPlus size={11} />
+              <IconFolderOpen size={12} />
               打开本地文件夹
             </button>
           </div>
@@ -360,8 +292,8 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       <nav className="nav-bottom">
         <button
           type="button"
-          className={`nav-item ${state.sideTab === "skills" ? "active" : ""}`}
-          onClick={() => state.setSideTab("skills")}
+          className={`nav-item ${onView("skills") ? "active" : ""}`}
+          onClick={() => state.setCenterView("skills")}
         >
           <span className="nav-glyph">
             <IconSkills />
@@ -371,23 +303,31 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
         </button>
         <button
           type="button"
-          className={`nav-item ${state.sideTab === "approvals" ? "active" : ""}`}
-          onClick={() => state.setSideTab("approvals")}
+          className={`nav-item ${onView("mcp") ? "active" : ""}`}
+          onClick={() => state.setCenterView("mcp")}
         >
           <span className="nav-glyph">
             <IconConnector />
           </span>
           <span className="nav-text">本地 MCP</span>
-          {(pendingApprovals || state.connectors.length) > 0 && (
-            <span className={`nav-badge ${pendingApprovals ? "warn" : ""}`}>
-              {pendingApprovals || state.connectors.length}
-            </span>
+          {state.connectors.length > 0 && (
+            <span className="nav-badge">{state.connectors.length}</span>
           )}
         </button>
         <button
           type="button"
-          className={`nav-item ${state.sideTab === "cost" ? "active" : ""}`}
-          onClick={() => state.setSideTab("cost")}
+          className={`nav-item ${onView("usage") ? "active" : ""}`}
+          onClick={() => state.setCenterView("usage")}
+        >
+          <span className="nav-glyph">
+            <IconUsage />
+          </span>
+          <span className="nav-text">用量与成本</span>
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${onView("artifacts") ? "active" : ""}`}
+          onClick={() => state.setCenterView("artifacts")}
         >
           <span className="nav-glyph">
             <IconFile />
@@ -397,29 +337,25 @@ export function Sidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             <span className="nav-badge">{state.artifacts.length}</span>
           )}
         </button>
-      </nav>
-
-      <div className="user-card">
         <button
           type="button"
-          className="inner"
+          className={`nav-item ${state.settingsOpen ? "active" : ""}`}
           onClick={() => state.setSettingsOpen(true)}
-          title="打开设置"
         >
-          <span className="avatar">
-            行
-            <i className={`presence ${state.hostOnline ? "on" : "off"}`} />
+          <span className="nav-glyph">
+            <IconGear size={16} />
           </span>
-          <span className="user-text">
-            <span className="user-name">{APP_DISPLAY_NAME}</span>
-            <span className="user-meta">
-              {state.hostOnline ? `本地核心 · ${readyProviders} PROVIDER` : "核心未连接"}
-            </span>
-          </span>
-          <span className="user-gear" aria-hidden>
-            <IconGear />
-          </span>
+          <span className="nav-text">设置</span>
+          <span className="nav-kbd">{state.platform.modifierKey} ,</span>
         </button>
+      </nav>
+
+      <div className="core-strip" title={state.hostOnline ? "本地核心已连接" : "本地核心未连接"}>
+        <span className={`core-dot ${state.hostOnline ? "on" : "off"}`} />
+        <span className="core-text">
+          {state.hostOnline ? `本地核心 · ${readyProviders} PROVIDER` : "核心未连接"}
+        </span>
+        <span className="core-version">{state.updateStatus?.currentVersion || ""}</span>
       </div>
     </aside>
   );

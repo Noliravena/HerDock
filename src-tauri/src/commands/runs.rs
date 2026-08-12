@@ -8,7 +8,7 @@ use crate::{
         events::{RunEvent, RunEventPage},
         models::{
             Approval, Checkpoint, PolicyRule, QueueItem, Run, RunInputs, Session, StartRunRequest,
-            UsageReport,
+            UsageReport, UsageSeries,
         },
     },
     services::{agent, state::AppState},
@@ -278,8 +278,30 @@ pub async fn approval_resolve(
     decision: String,
     state: State<'_, AppState>,
 ) -> CommandResult<()> {
-    if !matches!(decision.as_str(), "approve_once" | "always_allow" | "deny") {
+    if !matches!(
+        decision.as_str(),
+        "approve_once" | "allow_run" | "always_allow" | "deny"
+    ) {
         return Err("invalid approval decision".into());
+    }
+    let target = state
+        .db
+        .lock()
+        .await
+        .approval_target(&approval_id)
+        .map_err(err)?;
+    // A run-scoped allowance lives in memory for the rest of this run only; it is
+    // deliberately never written to policy_rules.
+    if decision == "allow_run" {
+        if let Some((run_id, Some(scope_key))) = target {
+            state
+                .run_allowances
+                .lock()
+                .await
+                .entry(run_id)
+                .or_default()
+                .insert(scope_key);
+        }
     }
     state
         .db
@@ -338,4 +360,17 @@ pub async fn usage_get(
     state: State<'_, AppState>,
 ) -> CommandResult<UsageReport> {
     state.db.lock().await.usage(run_id.as_deref()).map_err(err)
+}
+
+#[tauri::command]
+pub async fn usage_series(
+    days: Option<i64>,
+    state: State<'_, AppState>,
+) -> CommandResult<UsageSeries> {
+    state
+        .db
+        .lock()
+        .await
+        .usage_series(days.unwrap_or(7))
+        .map_err(err)
 }

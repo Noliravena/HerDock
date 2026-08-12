@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use tauri::{ipc::Channel, AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
@@ -49,6 +53,9 @@ pub struct AppState {
     pub db: Arc<Mutex<Database>>,
     pub runs: Arc<Mutex<HashMap<String, CancellationToken>>>,
     pub approvals: Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>,
+    /// Scope keys the operator allowed for the remainder of a single run. Kept in
+    /// memory only: a run-scoped allowance must not outlive the process.
+    pub run_allowances: Arc<Mutex<HashMap<String, HashSet<String>>>>,
     pub terminals: Arc<Mutex<HashMap<String, TerminalHandle>>>,
     pub mcp: Arc<McpManager>,
     pub grok_auth: Arc<GrokAuthManager>,
@@ -62,6 +69,7 @@ impl AppState {
             db: Arc::new(Mutex::new(database)),
             runs: Arc::new(Mutex::new(HashMap::new())),
             approvals: Arc::new(Mutex::new(HashMap::new())),
+            run_allowances: Arc::new(Mutex::new(HashMap::new())),
             terminals: Arc::new(Mutex::new(HashMap::new())),
             mcp: Arc::new(McpManager::new()),
             grok_auth: Arc::new(GrokAuthManager::default()),

@@ -3,14 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { RUN_STATUS_LABELS, type RunStatus } from "@her-dock/agent-protocol";
-import {
-  Browser,
-  ChatCircleDots,
-  Code,
-  GitDiff,
-  ListBullets,
-  TerminalWindow,
-} from "@phosphor-icons/react";
+import { Browser, ChatCircleDots, Code, GitDiff, TerminalWindow } from "@phosphor-icons/react";
 import { useShallow } from "zustand/react/shallow";
 import { CommandPalette } from "./components/CommandPalette";
 import { Composer } from "./components/Composer";
@@ -29,10 +22,25 @@ import { StatusBar } from "./components/StatusBar";
 import { Thread } from "./components/Thread";
 import { NewTabPage } from "./components/NewTabPage";
 import { BrandMark } from "./components/BrandMark";
-import { useWorkbench, type WorkTab } from "./store/workbench";
+import { isConsoleView, useWorkbench, type WorkTab } from "./store/workbench";
 
 const ActivityView = lazy(() =>
   import("./components/ActivityView").then((module) => ({ default: module.ActivityView })),
+);
+const ApprovalsView = lazy(() =>
+  import("./components/ApprovalsView").then((module) => ({ default: module.ApprovalsView })),
+);
+const UsageView = lazy(() =>
+  import("./components/UsageView").then((module) => ({ default: module.UsageView })),
+);
+const SkillsView = lazy(() =>
+  import("./components/SkillsView").then((module) => ({ default: module.SkillsView })),
+);
+const McpView = lazy(() =>
+  import("./components/McpView").then((module) => ({ default: module.McpView })),
+);
+const ArtifactsView = lazy(() =>
+  import("./components/ArtifactsView").then((module) => ({ default: module.ArtifactsView })),
 );
 const DiffView = lazy(() =>
   import("./components/DiffView").then((module) => ({ default: module.DiffView })),
@@ -145,6 +153,8 @@ export function App() {
     if (typeof path === "string") await openWorkspacePath(path);
   };
   const activeWorkTab = tabs.find((tab) => tab.key === activeTab);
+  // Console destinations own the whole centre pane: no work tabs, no side panel.
+  const onConsole = isConsoleView(centerView);
 
   return (
     <div className="app-root">
@@ -155,7 +165,24 @@ export function App() {
           <Sidebar onOpenWorkspace={openWorkspace} />
 
           <section className={`center ${appSurface === "design" ? "design-center" : ""}`}>
-            {appSurface === "workbench" ? (
+            {appSurface === "design" && (
+              <Suspense fallback={<ViewLoading />}>
+                <DesignView />
+              </Suspense>
+            )}
+
+            {appSurface === "workbench" && onConsole && (
+              <Suspense fallback={<ViewLoading />}>
+                {centerView === "activity" && <ActivityView />}
+                {centerView === "approvals" && <ApprovalsView />}
+                {centerView === "usage" && <UsageView />}
+                {centerView === "skills" && <SkillsView />}
+                {centerView === "mcp" && <McpView />}
+                {centerView === "artifacts" && <ArtifactsView />}
+              </Suspense>
+            )}
+
+            {appSurface === "workbench" && !onConsole && (
               <>
                 <TabBar />
 
@@ -177,11 +204,6 @@ export function App() {
                     <DiffView />
                   </Suspense>
                 )}
-                {centerView === "activity" && (
-                  <Suspense fallback={<ViewLoading />}>
-                    <ActivityView />
-                  </Suspense>
-                )}
                 {centerView === "terminal" && (
                   <Suspense fallback={<ViewLoading />}>
                     <TerminalPane />
@@ -199,14 +221,10 @@ export function App() {
                   </Suspense>
                 )}
               </>
-            ) : (
-              <Suspense fallback={<ViewLoading />}>
-                <DesignView />
-              </Suspense>
             )}
           </section>
 
-          {appSurface === "workbench" && rightOpen && <RightPanel />}
+          {appSurface === "workbench" && !onConsole && rightOpen && <RightPanel />}
         </div>
 
         <StatusBar />
@@ -377,8 +395,6 @@ function WorkTabIcon({ tab }: { tab: WorkTab }) {
       return <ChatCircleDots size={12} />;
     case "diff":
       return <GitDiff size={12} />;
-    case "activity":
-      return <ListBullets size={12} />;
     case "browser":
       return <Browser size={12} />;
     case "terminal":
@@ -420,6 +436,8 @@ function ChatHeader() {
       ? started.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
       : "—";
   const statusLabel = run ? RUN_STATUS_LABELS[run.status as RunStatus] || run.status : "尚未运行";
+  const running =
+    !!run && ["queued", "starting", "running", "waiting_approval"].includes(run.status);
 
   return (
     <div className="chat-head">
@@ -443,18 +461,20 @@ function ChatHeader() {
         <button
           type="button"
           className="ghost-btn"
-          disabled={!run}
+          disabled={!running}
           onClick={() => void cancelRun()}
         >
-          暂停
+          <span className="stop-glyph" />
+          停止运行
         </button>
         <button
           type="button"
           className="ghost-btn"
           disabled={!run}
           onClick={() => void continueRun()}
+          title="把磁盘上的改动作为新的起点继续运行"
         >
-          继续运行
+          采纳并继续
         </button>
         <button
           type="button"

@@ -2,6 +2,9 @@
 use anyhow::anyhow;
 use anyhow::Result;
 
+// Only the keyring-backed platforms use the service name; gating it keeps
+// `cargo clippy -D warnings` clean on other hosts.
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 const SERVICE: &str = "com.herdock.desktop";
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]

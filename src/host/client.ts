@@ -156,6 +156,26 @@ type UsageBucket = {
   calls: number;
 };
 export type UsageReport = { buckets: UsageBucket[]; context: { used: number; limit: number } };
+export type UsageDayEntry = {
+  day: string;
+  providerId: string;
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+};
+export type UsageRunEntry = {
+  id: string;
+  title: string;
+  providerId: string;
+  tokens: number;
+  createdAt?: string;
+};
+export type UsageSeries = {
+  days: UsageDayEntry[];
+  previousTokens: number;
+  previousRuns: number;
+  topRuns: UsageRunEntry[];
+};
 export type QueueItem = {
   runId: string;
   name: string;
@@ -200,6 +220,7 @@ export type Approval = {
   risk: string;
   kind: string;
   scopeKey?: string;
+  createdAt?: string;
 };
 export type Checkpoint = {
   id: string;
@@ -366,6 +387,7 @@ export const hostApi = {
   skills: (workspaceId?: string) => call<Skill[]>("skill_list", { workspaceId }),
   queue: () => call<QueueItem[]>("run_queue"),
   usage: (runId?: string) => call<UsageReport>("usage_get", { runId }),
+  usageSeries: (days: number) => call<UsageSeries>("usage_series", { days }),
   schedules: (workspaceId?: string) => call<Schedule[]>("schedule_list", { workspaceId }),
   saveSchedule: (request: {
     id?: string;

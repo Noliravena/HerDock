@@ -2,10 +2,12 @@ import {
   ArrowUp,
   CaretDown,
   CaretRight,
+  ChartLineUp,
   DotsThree,
   File,
   FolderOpen,
   GearSix,
+  Kanban,
   List,
   MagnifyingGlass,
   Minus,
@@ -14,6 +16,8 @@ import {
   PlugsConnected,
   Plus,
   Pulse,
+  Rows,
+  ShieldCheck,
   SidebarSimple,
   SlidersHorizontal,
   Square,
@@ -49,6 +53,18 @@ export function IconConnector({ size = 16, className }: IconProps) {
 }
 export function IconFile({ size = 16, className }: IconProps) {
   return <File {...defaults} size={size} className={className} />;
+}
+export function IconShield({ size = 16, className }: IconProps) {
+  return <ShieldCheck {...defaults} size={size} className={className} />;
+}
+export function IconUsage({ size = 16, className }: IconProps) {
+  return <ChartLineUp {...defaults} size={size} className={className} />;
+}
+export function IconRows({ size = 13, className }: IconProps) {
+  return <Rows {...defaults} size={size} className={className} />;
+}
+export function IconKanban({ size = 13, className }: IconProps) {
+  return <Kanban {...defaults} size={size} className={className} />;
 }
 export function IconChevron({ size = 10, className }: IconProps) {
   return <CaretDown {...defaults} size={size} className={className} />;

@@ -333,6 +333,10 @@ pub struct Approval {
     pub risk: String,
     pub kind: String,
     pub scope_key: Option<String>,
+    /// Set when the approval is read back from storage; `None` while it is being
+    /// created, where the database stamps the time itself.
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -392,6 +396,39 @@ pub struct UsageBucket {
 pub struct UsageReport {
     pub buckets: Vec<UsageBucket>,
     pub context: UsageContext,
+}
+
+/// One `usage_daily` row: tokens a single provider burned on a single day.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageDayEntry {
+    pub day: String,
+    pub provider_id: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub calls: i64,
+}
+
+/// A run ranked by token spend, for the "most expensive runs" table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageRunEntry {
+    pub id: String,
+    pub title: String,
+    pub provider_id: String,
+    pub tokens: i64,
+    pub created_at: Option<String>,
+}
+
+/// Windowed usage history backing the 用量与成本 surface. Everything here is read
+/// from the local database; HerDock never fetches remote billing data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageSeries {
+    pub days: Vec<UsageDayEntry>,
+    pub previous_tokens: i64,
+    pub previous_runs: i64,
+    pub top_runs: Vec<UsageRunEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
