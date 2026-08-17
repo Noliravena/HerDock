@@ -1,0 +1,141 @@
+/* Light theme — Grok palette: pure white surfaces, neutral gray hierarchy,
+   ink-black accent. Specificity (html[data-theme="light"] .simple-shell)
+   beats the dark defaults, so one block themes the app. */
+
+html[data-theme="light"] .simple-shell {
+  --bg-app: #ffffff;
+  --bg-sidebar: #f7f7f8;
+  --bg-sidebar-solid: #f7f7f8;
+  --bg-main: #ffffff;
+  --bg-aside: #f7f7f8;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgba(0, 0, 0, 0.32);
+  --bg-hover: #f0f0f1;
+  --bg-active: #e7e7e9;
+  --bg-input: #ffffff;
+  --bg-code: #f6f6f7;
+  --bg-card: #ffffff;
+  --bg-user-bubble: #f0f0f1;
+
+  --hairline: rgba(0, 0, 0, 0.08);
+  --tint-0: rgba(0, 0, 0, 0.025);
+  --tint-1: rgba(0, 0, 0, 0.045);
+  --tint-2: rgba(0, 0, 0, 0.06);
+  --tint-3: rgba(0, 0, 0, 0.08);
+  --tint-4: rgba(0, 0, 0, 0.1);
+  --tint-5: rgba(0, 0, 0, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-chip: rgba(255, 255, 255, 0.88);
+  --dot-grid: rgba(0, 0, 0, 0.07);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.24);
+  --scrim: rgba(0, 0, 0, 0.4);
+
+  --border-subtle: #e8e8ea;
+  --border-strong: #d4d4d7;
+  --border-focus: rgba(0, 0, 0, 0.45);
+  --text-primary: #0f0f0f;
+  --text-secondary: #5d5d62;
+  --text-tertiary: #8e8e93;
+  --text-inverse: #ffffff;
+
+  /* Grok light: the accent is ink black, inverted from dark mode */
+  --g-accent: #0f0f0f;
+  --g-accent-hover: #333333;
+  --g-accent-muted: rgba(0, 0, 0, 0.06);
+  --g-accent-contrast: #ffffff;
+  --g-accent-2: #0f0f0f;
+  --g-success: #16a34a;
+  --g-warning: #c2600d;
+  --g-danger: #dc2626;
+  --g-info: #0f0f0f;
+
+  --shadow-hairline: 0 0 0 1px #e8e8ea;
+  --shadow-btn: 0 0 0 1px #d4d4d7, 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 0 0 1px #eaeaea, 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 0 0 1px #e8e8ea, 0 2px 10px rgba(0, 0, 0, 0.08);
+  --shadow-overlay: 0 0 0 1px #e8e8ea, 0 8px 28px rgba(0, 0, 0, 0.16);
+
+  /* Classic remap literals */
+  --panel-alt: #ffffff;
+  --card-head: #f7f7f8;
+  --line-thumb: rgba(0, 0, 0, 0.2);
+  --accent-panel: #f0f0f1;
+  --accent-line: rgba(0, 0, 0, 0.3);
+  --ok-bg: rgba(22, 163, 74, 0.1);
+  --warn-bg: rgba(194, 96, 13, 0.1);
+  --danger-bg: rgba(220, 38, 38, 0.1);
+  --danger-row: rgba(220, 38, 38, 0.1);
+  --ok-row: rgba(22, 163, 74, 0.1);
+  --ok-ink: #3b6b2c;
+  --danger-ink: #9e3e31;
+
+  /* Design surface: white studio */
+  --design-page: #ffffff;
+  --canvas: #fafafa;
+  --canvas-dot: rgba(0, 0, 0, 0.06);
+  --seg-track: #ededee;
+
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
+/* Scrollbars follow the theme */
+html[data-theme="light"] .simple-shell ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+html[data-theme="light"] .simple-shell ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.32);
+}
+html[data-theme="light"] .simple-shell * {
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+
+/* Windows caption buttons read on light chrome */
+html[data-theme="light"] .simple-shell .caption-buttons button:hover {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+/* Theme picker in settings */
+.simple-shell .theme-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.simple-shell .theme-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.simple-shell .theme-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-hairline);
+}
+.simple-shell .theme-seg button {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .theme-seg button:hover {
+  color: var(--text-primary);
+}
+.simple-shell .theme-seg button.on {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}

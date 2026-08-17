@@ -1,0 +1,2174 @@
+/* Page redesign layer — one pass over every console page.
+   Scaffold, history, activity, approvals, usage, skills, MCP, artifacts.
+   Loaded after grok-refine.css. */
+
+/* ── 1. Page scaffold shared by every console page ───────────────────── */
+.simple-shell .g-page-head {
+  height: 52px;
+  min-height: 52px;
+  padding: 0 20px;
+  gap: 12px;
+  background: var(--bg-main);
+}
+.simple-shell .g-page-body {
+  width: 100%;
+  padding: 20px 28px 64px;
+}
+.simple-shell .g-page-empty {
+  padding: 72px 12px;
+  font-size: 13px;
+}
+.simple-shell .g-search {
+  width: min(240px, 32%);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: transparent;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.simple-shell .g-search:focus-within {
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 2px var(--g-accent-muted);
+}
+.simple-shell .g-search input {
+  font-size: 12.5px;
+}
+.simple-shell .g-page-body > .g-tabs {
+  margin-bottom: 16px;
+}
+
+/* ── 2. 历史 ─────────────────────────────────────────────────────────── */
+.simple-shell .g-hist-group h2,
+.simple-shell .g-hist-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 8px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.simple-shell .g-hist-group:first-child h2,
+.simple-shell .g-hist-group:first-child .g-hist-sep {
+  margin-top: 4px;
+}
+.simple-shell .g-hist-sep::before,
+.simple-shell .g-hist-sep::after,
+.simple-shell .g-hist-group h2::before,
+.simple-shell .g-hist-group h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+.simple-shell .g-hist-row {
+  min-height: 44px;
+  padding: 8px 12px;
+  gap: 12px;
+  border-radius: 10px;
+  transition: background 120ms ease;
+}
+.simple-shell .g-hist-row.on {
+  background: var(--g-accent-muted);
+}
+.simple-shell .g-hist-title {
+  font-size: 13px;
+  font-weight: 450;
+}
+.simple-shell .g-hist-row .run-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.simple-shell .g-hist-row .run-dot.running,
+.simple-shell .g-hist-row .run-dot.starting {
+  background: var(--g-accent);
+  animation: g-dot-pulse 1.4s ease-in-out infinite;
+}
+.simple-shell .g-hist-row .run-dot.waiting_approval,
+.simple-shell .g-hist-row .run-dot.waiting_human {
+  background: var(--g-warning);
+}
+.simple-shell .g-hist-row .run-dot.completed {
+  background: var(--g-success);
+}
+.simple-shell .g-hist-row .run-dot.failed,
+.simple-shell .g-hist-row .run-dot.cancelled,
+.simple-shell .g-hist-row .run-dot.interrupted {
+  background: var(--g-danger);
+}
+/* Status hint becomes a tinted pill instead of colored text */
+.simple-shell .g-hist-meta i {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--g-warning);
+  font-size: 11px;
+  font-weight: 500;
+  font-style: normal;
+}
+.simple-shell .g-hist-meta i.waiting_approval,
+.simple-shell .g-hist-meta i.waiting_human,
+.simple-shell .g-hist-meta i.paused {
+  background: var(--g-accent-muted);
+  color: var(--g-accent);
+}
+.simple-shell .g-hist-meta i.failed,
+.simple-shell .g-hist-meta i.cancelled,
+.simple-shell .g-hist-meta i.interrupted {
+  background: var(--danger-bg);
+  color: var(--g-danger);
+}
+.simple-shell .g-hist-meta time {
+  min-width: 44px;
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 3. 活动 ─────────────────────────────────────────────────────────── */
+.simple-shell .bui-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.simple-shell .bui-task {
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  box-shadow: var(--shadow-hairline);
+  overflow: hidden;
+  transition: box-shadow 140ms ease;
+}
+.simple-shell .bui-task:hover {
+  box-shadow: var(--shadow-card);
+}
+.simple-shell .bui-task-main {
+  padding: 11px 14px;
+  gap: 12px;
+}
+.simple-shell .bui-task-dot {
+  width: 8px;
+  height: 8px;
+}
+.simple-shell .bui-task-dot.running,
+.simple-shell .bui-task-dot.starting {
+  animation: g-dot-pulse 1.4s ease-in-out infinite;
+}
+.simple-shell .bui-task-copy strong {
+  font-size: 13.5px;
+  font-weight: 520;
+}
+.simple-shell .bui-task-copy small {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.simple-shell .bui-task-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.simple-shell .bui-task-meta time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .bui-task-more,
+.simple-shell .bui-task-detail button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.simple-shell .bui-task-more:hover,
+.simple-shell .bui-task-detail button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .bui-task-detail {
+  padding: 0 14px 12px 46px;
+}
+.simple-shell .bui-task-detail p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--g-danger);
+}
+.simple-shell .bui-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.simple-shell .bui-board-col {
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--tint-0);
+}
+.simple-shell .bui-board-col header {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+.simple-shell .bui-board-col header em {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--bg-active);
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 500;
+  font-style: normal;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .bui-board-col .bui-task {
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.simple-shell .bui-board-col .g-empty {
+  padding: 14px 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* ── 4. 审批 ─────────────────────────────────────────────────────────── */
+.simple-shell .g-appr-card {
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+.simple-shell .g-appr-card.on {
+  box-shadow:
+    0 0 0 1.5px var(--border-focus),
+    var(--shadow-card);
+}
+.simple-shell .g-appr-main {
+  padding: 13px 14px;
+}
+.simple-shell .g-appr-icon {
+  border-radius: 9px;
+}
+.simple-shell .g-appr-icon.low {
+  background: var(--ok-bg);
+  color: var(--g-success);
+}
+.simple-shell .g-appr-icon.medium {
+  background: var(--warn-bg);
+  color: var(--g-warning);
+}
+.simple-shell .g-appr-copy strong {
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.simple-shell .g-appr-copy small {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+/* Risk label → tinted pill */
+.simple-shell .g-appr-risk {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--g-warning);
+  font-size: 11px;
+  font-weight: 550;
+}
+.simple-shell .g-appr-risk.low {
+  background: var(--ok-bg);
+  color: var(--g-success);
+}
+.simple-shell .g-appr-risk.high {
+  background: var(--danger-bg);
+  color: var(--g-danger);
+}
+.simple-shell .g-appr-payload {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: var(--bg-code);
+  box-shadow: var(--shadow-hairline);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* Scope choices → quiet chips, accent when selected */
+.simple-shell .g-appr-scopes button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.simple-shell .g-appr-scopes button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.simple-shell .g-appr-scopes button.on {
+  border-color: transparent;
+  background: var(--g-accent-muted);
+  color: var(--g-accent);
+  font-weight: 500;
+}
+.simple-shell .g-appr-actions button {
+  height: 30px;
+}
+.simple-shell .g-appr-actions .ghost {
+  border: 1px solid var(--border-subtle);
+}
+.simple-shell .g-appr-actions .ghost:hover {
+  border-color: var(--border-strong);
+}
+.simple-shell .g-appr-actions .solid {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+  box-shadow: none;
+}
+.simple-shell .g-appr-actions .solid:hover {
+  background: var(--g-accent-hover);
+}
+/* Long-lived rules tab */
+.simple-shell .g-rule-row {
+  min-height: 50px;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+/* ── 5. 用量 ─────────────────────────────────────────────────────────── */
+.simple-shell .console-scroll {
+  padding-top: 20px;
+}
+.simple-shell .usage-grid {
+  gap: 12px;
+}
+.simple-shell .stat-card {
+  padding: 16px 18px;
+  gap: 6px;
+}
+.simple-shell .stat-value {
+  font-weight: 590;
+  letter-spacing: -0.015em;
+}
+.simple-shell .stat-delta {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+}
+.simple-shell .panel-block {
+  padding: 18px;
+}
+.simple-shell .panel-block-head {
+  margin-bottom: 14px;
+}
+.simple-shell .panel-block-head .legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .bar-chart {
+  height: 168px;
+  gap: 12px;
+}
+.simple-shell .bar-total {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+.simple-shell .bar-stack {
+  max-width: 42px;
+  border-radius: 6px 6px 3px 3px;
+}
+.simple-shell .bar-day {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--tint-2);
+}
+.simple-shell .meter > i {
+  border-radius: 999px;
+}
+.simple-shell .provider-bar-top .name {
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+.simple-shell .provider-bar-top .calls {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .provider-bar-top .tokens {
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--text-primary);
+}
+.simple-shell .bucket-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--tint-1);
+}
+.simple-shell .bucket-row:last-child {
+  border-bottom: none;
+}
+.simple-shell .bucket-row .k {
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+.simple-shell .bucket-row .v {
+  font-size: 12px;
+  font-weight: 560;
+}
+.simple-shell .usage-run-row {
+  min-height: 46px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  transition: background 120ms ease;
+}
+.simple-shell .usage-run-row:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .usage-run-row .id {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .usage-run-row .title {
+  font-size: 13px;
+}
+.simple-shell .usage-run-row .tokens {
+  font-size: 12px;
+  font-weight: 560;
+}
+.simple-shell .panel-note {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-tertiary);
+}
+
+/* ── 6. 技能 / MCP / 产物 — card rows ────────────────────────────────── */
+/* Standalone rows (skills, artifacts) render as cards; rows nested inside
+   an expandable MCP block stay transparent so the block is the card. */
+.simple-shell .g-page-body > .g-list-row {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+.simple-shell .g-page-body > .g-list-row:hover {
+  border-color: var(--border-strong);
+}
+.simple-shell .g-list-block {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 4px 6px;
+  margin-bottom: 10px;
+  transition: border-color 120ms ease;
+}
+.simple-shell .g-list-block:hover,
+.simple-shell .g-list-block.on {
+  border-color: var(--border-strong);
+}
+.simple-shell .g-list-block .g-list-row {
+  background: transparent;
+}
+.simple-shell .g-list-copy strong {
+  font-size: 13.5px;
+  font-weight: 520;
+}
+.simple-shell .g-list-copy small {
+  font-size: 12px;
+}
+.simple-shell .g-list-meta em {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .g-list-meta time {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* Switch: accent track when on (assistant-ui Switch) */
+.simple-shell .g-switch {
+  width: 36px;
+  border-radius: 999px;
+  background: var(--tint-5);
+  transition: background 150ms ease;
+}
+.simple-shell .g-switch i {
+  top: 2.5px;
+  left: 2.5px;
+  width: 15px;
+  height: 15px;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    background 150ms ease;
+}
+.simple-shell .g-switch.on {
+  background: var(--g-accent);
+}
+.simple-shell .g-switch.on i {
+  transform: translateX(16px);
+  background: var(--g-accent-contrast);
+}
+/* Status dot with halo (MCP servers) */
+.simple-shell .g-dot {
+  box-shadow: 0 0 0 3px var(--tint-1);
+}
+.simple-shell .g-chip {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--tint-1);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 22px;
+}
+.simple-shell .g-row-actions button {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  border-radius: 8px;
+}
+.simple-shell .g-row-actions button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .g-head-btn {
+  height: 30px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.simple-shell .g-head-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.simple-shell .g-fold {
+  margin-top: 24px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .g-fold summary {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+.simple-shell .g-fold li {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--tint-1);
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+}
+.simple-shell .g-fold li:last-child {
+  border-bottom: none;
+}
+
+/* ── 7. Card polish (assistant-ui language) ─────────────────────────────
+   Border-defined cards: 12px radius, hairline border, minimal shadow,
+   500-600 weight titles with muted descriptions. */
+
+.simple-shell .panel-block,
+.simple-shell .stat-card,
+.simple-shell .bui-task,
+.simple-shell .g-page-body > .g-list-row,
+.simple-shell .g-list-block,
+.simple-shell .g-appr-card,
+.simple-shell .schedule-form,
+.simple-shell .g-fold {
+  border-radius: 12px;
+}
+
+.simple-shell .panel-block {
+  padding: 20px;
+}
+.simple-shell .panel-block-head {
+  margin-bottom: 16px;
+}
+.simple-shell .panel-block-head strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.simple-shell .panel-block-head .sub {
+  font-size: 12px;
+}
+
+.simple-shell .stat-card {
+  padding: 18px 20px;
+  gap: 8px;
+}
+.simple-shell .stat-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.simple-shell .stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.simple-shell .g-page-body > .g-list-row {
+  padding: 13px 16px;
+}
+.simple-shell .g-list-block {
+  padding: 5px 7px;
+}
+.simple-shell .g-appr-main {
+  padding: 14px 16px;
+}
+.simple-shell .g-appr-panel {
+  padding: 0 16px 16px;
+}
+.simple-shell .g-appr-actions {
+  padding-top: 4px;
+}
+.simple-shell .bui-task-main {
+  padding: 12px 16px;
+}
+.simple-shell .usage-run-row {
+  padding: 10px 14px;
+}
+.simple-shell .g-fold {
+  padding: 16px 18px;
+}
+.simple-shell .schedule-form {
+  padding: 16px;
+}
+
+/* Unified hover: border lifts, no heavy shadows */
+.simple-shell .panel-block:hover,
+.simple-shell .stat-card:hover {
+  border-color: var(--border-strong);
+}
+.simple-shell .g-appr-card.on {
+  box-shadow:
+    0 0 0 1.5px var(--border-focus),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* ── 8. Toast redesign (assistant-ui) ────────────────────────────────────
+   Structured card: title row + close, description, trailing actions.
+   Fixes the monochrome invisible primary button in the base styles. */
+
+.simple-shell .toast-stack {
+  right: 20px;
+  bottom: 88px;
+  width: 360px;
+  gap: 10px;
+}
+.simple-shell .toast {
+  display: block;
+  padding: 13px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+.simple-shell .toast-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.simple-shell .toast-head strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-shell .toast-close {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .toast-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .toast-detail {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.simple-shell .toast-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.simple-shell .toast-actions button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.simple-shell .toast-actions button:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .toast-actions button.primary {
+  border-color: transparent;
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .toast-actions button.primary:hover {
+  background: var(--g-accent-hover);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .toast.error {
+  border-color: var(--danger-bg);
+}
+.simple-shell .toast.error strong {
+  color: var(--g-danger);
+}
+.simple-shell .toast.approval {
+  border-color: var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+/* ── 9. Titlebar / tab bar polish ────────────────────────────────────────
+   Pill tabs with hover feedback, quiet status chip, danger stop,
+   and clearance for the Windows caption buttons. */
+
+.simple-shell .grok-tabs {
+  height: var(--titlebar-height);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg-main);
+}
+.simple-shell .grok-tabs .tab-strip {
+  gap: 4px;
+  padding: 0 6px;
+}
+.simple-shell .grok-tabs .tab {
+  height: 28px;
+  gap: 7px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 450;
+  color: var(--text-tertiary);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .grok-tabs .tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .grok-tabs .tab.active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.simple-shell .grok-tabs .tab .dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--g-accent);
+}
+/* Close affordance appears on hover */
+.simple-shell .grok-tabs .tab .close {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .grok-tabs .tab:hover .close,
+.simple-shell .grok-tabs .tab.active .close {
+  opacity: 1;
+}
+.simple-shell .grok-tabs .tab .close:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+.simple-shell .grok-tabs .tab-add,
+.simple-shell .grok-tabs .panel-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--text-tertiary);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .grok-tabs .tab-add:hover,
+.simple-shell .grok-tabs .panel-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .grok-tabs .panel-toggle.on {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+/* Windows caption buttons overlay the top-right corner — keep controls clear.
+   With the files rail open the caption sits over the rail instead, so the
+   tab controls drop the clearance and align to the rail edge. */
+.simple-shell.is-win .grok-tabs .tabs-right {
+  padding-right: 146px;
+}
+.simple-shell.is-win .body-row.has-files-rail .grok-tabs .tabs-right {
+  padding-right: 8px;
+}
+.simple-shell .grok-tabs .tabs-right {
+  gap: 4px;
+  padding: 0 8px;
+}
+/* Run status as a quiet chip: colored dot + label, hairline border */
+.simple-shell .grok-tabs .run-pill {
+  height: 26px;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 450;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.simple-shell .grok-tabs .run-pill:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.simple-shell .grok-tabs .run-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+}
+.simple-shell .grok-tabs .run-pill.live i {
+  background: var(--g-accent);
+  animation: g-dot-pulse 1.4s ease-in-out infinite;
+}
+.simple-shell .grok-tabs .run-pill.ok i {
+  background: var(--g-success);
+}
+.simple-shell .grok-tabs .run-pill.bad i {
+  background: var(--g-danger);
+}
+.simple-shell .grok-tabs .run-pill.live,
+.simple-shell .grok-tabs .run-pill.ok,
+.simple-shell .grok-tabs .run-pill.bad {
+  color: var(--text-secondary);
+}
+/* Stop = danger ghost chip */
+.simple-shell .grok-tabs .simple-stop {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--danger-bg);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g-danger);
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+.simple-shell .grok-tabs .simple-stop:hover {
+  background: var(--danger-bg);
+  color: var(--g-danger);
+  border-color: var(--g-danger);
+}
+/* Queue popover as an elevated card */
+.simple-shell .queue-pop {
+  min-width: 240px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+.simple-shell .queue-pop header {
+  padding: 2px 4px 8px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+
+/* When the files rail is open, the centre pane ends at the rail border —
+   the Windows caption buttons no longer overlap the tab bar, so drop the
+   146px clearance and keep the bar's controls flush with both edges. */
+.simple-shell.is-win .body-row:has(.files-panel) .grok-tabs .tabs-right {
+  padding-right: 8px;
+}
+
+/* ── 10. Shared assistant-ui anatomy on console pages ─────────────────── */
+
+.simple-shell .g-page > .conn-banner.aui-conn {
+  margin: 8px 20px 0;
+}
+
+.simple-shell .g-page-body:has(> .aui-empty:only-child) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.simple-shell .aui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 48px auto;
+  max-width: 380px;
+  padding: 12px;
+  text-align: center;
+}
+.simple-shell .aui-empty h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.simple-shell .aui-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.simple-shell .aui-empty-actions button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  animation: design-chip-in 0.4s ease both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.simple-shell .aui-empty-actions button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.simple-shell .aui-empty-actions button.primary {
+  border-color: transparent;
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .aui-empty-actions button.primary:hover {
+  background: var(--g-accent-hover);
+  color: var(--g-accent-contrast);
+}
+
+.simple-shell .aui-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--g-danger) 10%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.simple-shell .aui-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--g-danger);
+}
+.simple-shell .aui-error span {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.simple-shell .aui-error strong {
+  color: var(--g-danger);
+  font-weight: 560;
+}
+.simple-shell .aui-error small {
+  color: color-mix(in srgb, var(--g-danger) 70%, transparent);
+}
+.simple-shell .aui-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g-danger);
+  cursor: pointer;
+}
+
+.simple-shell .aui-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.simple-shell .aui-status-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-shell .aui-status-pill em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .aui-status-pill .ok {
+  color: var(--g-success);
+}
+.simple-shell .aui-status-pill.failed {
+  color: var(--g-danger);
+}
+
+.simple-shell .aui-job {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.simple-shell .aui-job-track {
+  display: block;
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+.simple-shell .aui-job-track > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--g-accent);
+}
+.simple-shell .aui-job em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .aui-artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-artifact-row:hover {
+  border-color: var(--border-strong);
+}
+.simple-shell .aui-artifact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.simple-shell .aui-artifact-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.simple-shell .aui-artifact-icon.pulse {
+  animation: think-pulse 1.4s ease-in-out infinite;
+}
+.simple-shell .aui-artifact-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.simple-shell .aui-artifact-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 550;
+}
+.simple-shell .aui-artifact-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+.simple-shell .aui-artifact .hover-arrow {
+  color: var(--text-tertiary);
+  opacity: 0;
+  flex-shrink: 0;
+}
+.simple-shell .aui-artifact:hover .hover-arrow {
+  opacity: 1;
+}
+
+.simple-shell .aui-spec {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-spec header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.simple-shell .aui-spec header strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.simple-shell .aui-spec header small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.simple-shell .aui-spec .inspect-rows {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.simple-shell .aui-spec .inspector-row {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--tint-1);
+}
+.simple-shell .aui-spec .inspector-row:last-child {
+  border-bottom: 0;
+}
+.simple-shell .aui-spec .inspector-row > span {
+  min-width: 64px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.simple-shell .aui-spec .inspector-row strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.simple-shell .aui-spec .inspector-row strong.emphasis {
+  color: var(--text-primary);
+  font-weight: 560;
+}
+.simple-shell .aui-rule {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.simple-shell .aui-rule .aui-spec {
+  flex: 1;
+  margin: 0;
+}
+.simple-shell .aui-rule-del {
+  width: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.simple-shell .aui-rule-del:hover {
+  border-color: var(--g-danger);
+  color: var(--g-danger);
+  background: var(--danger-bg);
+}
+
+.simple-shell .aui-cost {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-meter {
+  display: block;
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--tint-2);
+}
+.simple-shell .aui-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--g-accent);
+}
+.simple-shell .aui-cost em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.simple-shell .aui-tool-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.simple-shell .aui-tool-rows li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+}
+.simple-shell .aui-tool-rows li span {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.simple-shell .aui-tool-rows li strong {
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+.simple-shell .aui-tool-rows li small {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .aui-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-approval.on {
+  box-shadow: 0 0 0 1.5px var(--border-focus);
+}
+.simple-shell .aui-approval-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.simple-shell .aui-approval-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.simple-shell .aui-approval-head span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.simple-shell .aui-approval-head strong {
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.simple-shell .aui-approval-head small {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+.simple-shell .aui-approval-cmd {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.simple-shell .aui-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.simple-shell .aui-approval-actions button {
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.simple-shell .aui-approval-actions button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.simple-shell .aui-approval-actions button.primary {
+  border-color: transparent;
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .aui-approval-actions button.primary:hover {
+  background: var(--g-accent-hover);
+  color: var(--g-accent-contrast);
+}
+
+.simple-shell .aui-inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.simple-shell .aui-inbox-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-inbox-card:hover {
+  border-color: var(--border-strong);
+}
+.simple-shell .aui-inbox-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.simple-shell .aui-inbox-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.simple-shell .aui-inbox-copy strong {
+  font-size: 13.5px;
+  font-weight: 520;
+}
+.simple-shell .aui-inbox-copy small {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-inbox-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.simple-shell .aui-inbox-meta time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .aui-inbox-retry {
+  align-self: flex-end;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.simple-shell .aui-inbox-retry:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .aui-ref {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-ref.on {
+  border-color: transparent;
+  background: var(--g-accent-muted);
+}
+.simple-shell .aui-ref-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.simple-shell .aui-ref-copy strong {
+  font-size: 13.5px;
+  font-weight: 520;
+}
+.simple-shell .aui-ref-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.simple-shell .aui-chip {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--tint-1);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 20px;
+}
+.simple-shell .aui-ref.on .aui-chip {
+  background: color-mix(in srgb, var(--g-accent) 18%, transparent);
+  color: var(--g-accent);
+}
+
+.simple-shell .aui-server {
+  margin-bottom: 10px;
+  padding: 4px 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-server.on {
+  border-color: var(--border-strong);
+}
+.simple-shell .aui-server-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 4px;
+}
+.simple-shell .aui-server-toggle {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.simple-shell .aui-server-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.simple-shell .aui-server-copy strong {
+  font-size: 13.5px;
+  font-weight: 520;
+}
+.simple-shell .aui-server-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-server-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 10px 8px 36px;
+}
+.simple-shell .aui-probe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.simple-shell .aui-table-wrap {
+  margin: 0 -6px;
+}
+.simple-shell .aui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.simple-shell .aui-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 14px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-weight: 550;
+  text-align: left;
+}
+.simple-shell .aui-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--tint-1);
+}
+.simple-shell .aui-table tbody tr {
+  cursor: pointer;
+}
+.simple-shell .aui-table tbody tr:hover td {
+  background: var(--bg-hover);
+}
+.simple-shell .aui-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 560;
+}
+.simple-shell .aui-table .mono {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-chart-empty {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.simple-shell .aui-chart-empty .aui-empty {
+  margin: 12px auto;
+}
+.simple-shell .panel-block.flush {
+  overflow: hidden;
+}
+.simple-shell .panel-block.flush .aui-table-wrap {
+  margin: 0;
+}
+
+.simple-shell .g-fold .aui-tool-rows {
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------- elements · round five --
+   Settings modal, diff surface, terminal and palette, per the assistant-ui
+   settings-panel / model-picker / confirm-dialog / code-diff / reviewable-diff
+   / file-tree / terminal-block / command-palette anatomies. */
+
+/* confirm-dialog — a compact card over a scrim, Yes/No carrying distinct actions */
+.simple-shell .aui-confirm-scrim {
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+}
+.simple-shell .aui-confirm-scrim.fixed {
+  position: fixed;
+  inset: 0;
+}
+.simple-shell .aui-confirm-scrim.absolute {
+  position: absolute;
+  inset: 0;
+}
+.simple-shell .aui-confirm {
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+.simple-shell .aui-confirm strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.simple-shell .aui-confirm p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.simple-shell .aui-confirm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+.simple-shell .aui-confirm footer button {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.simple-shell .aui-confirm footer button.primary {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .aui-confirm footer button.primary.danger {
+  background: var(--g-danger);
+  color: var(--text-inverse);
+}
+
+/* settings-panel — mono micro-label, segmented track, real switches */
+.simple-shell .aui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+.simple-shell .aui-field > .mono {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--tint-1);
+}
+.simple-shell .aui-seg button {
+  flex: 1;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.simple-shell .aui-seg button:hover {
+  color: var(--text-secondary);
+}
+.simple-shell .aui-seg button.on {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+.simple-shell .aui-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.simple-shell .aui-toggle-row > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.simple-shell .aui-toggle-row strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.simple-shell .aui-toggle-row small {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-switch {
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tint-2);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.simple-shell .aui-switch.on {
+  background: var(--g-accent);
+}
+.simple-shell .aui-switch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.simple-shell .aui-switch > i {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  transition: transform 0.2s ease;
+}
+.simple-shell .aui-switch.on > i {
+  transform: translateX(16px);
+  background: var(--g-accent-contrast);
+}
+
+/* model-picker — grouped by family, capability chips, the pick marked */
+.simple-shell .aui-picker {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-picker-family > .mono {
+  display: block;
+  padding: 8px 8px 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-picker-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.simple-shell .aui-picker-row:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .aui-picker-row.on {
+  background: var(--tint-1);
+}
+.simple-shell .aui-picker-row.muted .aui-picker-copy strong {
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-picker-check {
+  width: 14px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+.simple-shell .aui-picker-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+.simple-shell .aui-picker-copy strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.simple-shell .aui-picker-meta {
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* file-tree — churn per file, folders only where the path branches */
+.simple-shell .aui-tree {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+}
+.simple-shell .aui-tree > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px 8px;
+}
+.simple-shell .aui-tree > header strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.simple-shell .aui-tree .add {
+  color: var(--g-success);
+}
+.simple-shell .aui-tree .del {
+  color: var(--g-danger);
+}
+.simple-shell .aui-tree-rows {
+  display: flex;
+  flex-direction: column;
+}
+.simple-shell .aui-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  text-align: left;
+  animation: aui-tree-in 0.28s ease both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+.simple-shell .aui-tree-row.folder {
+  color: var(--text-tertiary);
+}
+.simple-shell .aui-tree-row.file {
+  cursor: pointer;
+}
+.simple-shell .aui-tree-row.file span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-shell .aui-tree-row.file:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .aui-tree-row em {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes aui-tree-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .simple-shell .aui-tree-row {
+    animation: none;
+  }
+}
+
+/* reviewable-diff — a decision per file, the deferred ones stay visible */
+.simple-shell .diff-view {
+  display: flex;
+  flex-direction: column;
+}
+.simple-shell .diff-view .diff-body {
+  padding: 12px 14px 0;
+}
+.simple-shell .diff-view .diff-file {
+  margin-bottom: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  transition: opacity 0.3s ease;
+}
+.simple-shell .diff-view .diff-file.deferred {
+  opacity: 0.45;
+}
+.simple-shell .diff-view .diff-file-head {
+  cursor: default;
+}
+.simple-shell .diff-view .edit-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.simple-shell .diff-view .edit-path:hover {
+  text-decoration: underline;
+}
+.simple-shell .diff-view .edit-diff {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .diff-view .edit-diff .add {
+  color: var(--g-success);
+}
+.simple-shell .diff-view .edit-diff .del {
+  color: var(--g-danger);
+}
+.simple-shell .diff-file-review {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.simple-shell .diff-file-review button {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.simple-shell .diff-file-review button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .diff-file-review .keep {
+  background: var(--ok-bg, var(--tint-1));
+  color: var(--g-success);
+}
+.simple-shell .diff-file-review .decided.reviewed {
+  color: var(--g-success);
+}
+.simple-shell .diff-review-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .diff-foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+.simple-shell .diff-foot > .mono {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* terminal-block — the header owns the command and the exit status */
+.simple-shell .terminal-panels {
+  background: var(--bg-main);
+}
+.simple-shell .terminal-session {
+  display: none;
+  flex-direction: column;
+  padding: 0;
+}
+.simple-shell .terminal-session.visible {
+  display: flex;
+}
+.simple-shell .aui-term-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+.simple-shell .aui-term-head > .mono {
+  margin-right: auto;
+}
+.simple-shell .aui-term-live,
+.simple-shell .aui-term-exit {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.simple-shell .aui-term-exit.ok {
+  color: var(--g-success);
+}
+.simple-shell .aui-term-exit.bad {
+  color: var(--g-danger);
+}
+.simple-shell .aui-term-exit em {
+  font-style: normal;
+}
+.simple-shell .aui-term-head button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.simple-shell .terminal-surface {
+  min-height: 0;
+  flex: 1;
+  padding: 0 12px 10px;
+}
+.simple-shell .terminal-surface .xterm {
+  height: 100%;
+}
+
+/* command-palette — shortcut chips per key, the query quoted when nothing matches */
+.simple-shell .palette-item .hint {
+  display: flex;
+  gap: 4px;
+}
+.simple-shell .palette-item .hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: var(--tint-1);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.simple-shell .palette-empty {
+  padding: 22px 12px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+  word-break: break-word;
+}

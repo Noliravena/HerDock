@@ -1,0 +1,2002 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Conversation surface — assistant-ui element patterns rendered on the
+   graphite token system. Loaded after the grok layers so equal-specificity
+   rules here win. Light theme rides the same tokens via grok-theme-light.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.simple-shell {
+  --chat-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --chat-stream: #8fb8ff;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), 0 4px 14px rgba(0, 0, 0, 0.16);
+  --composer-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme="light"] .simple-shell {
+  --chat-stream: #1d4ed8;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 3px 10px rgba(0, 0, 0, 0.04);
+  --composer-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 10px 28px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Scroll anchor (thread viewport + jump pill) ─────────────────────── */
+
+.thread-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-viewport .simple-thread {
+  flex: 1;
+}
+
+.thread-anchor {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 13px 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 5;
+  animation: anchor-in 0.25s ease both;
+}
+
+.thread-anchor svg {
+  opacity: 0.6;
+}
+
+.thread-anchor:hover {
+  color: var(--text-primary);
+  transform: translateX(-50%) translateY(-1px);
+}
+
+@keyframes anchor-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
+/* ── Message pair: user bubble + assistant reply ──────────────────────── */
+
+.simple-shell .turn {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.simple-shell .turn.user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.simple-shell .bubble-user {
+  max-width: 75%;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  border-radius: 16px 16px 6px 16px;
+  box-shadow: inset 0 0 0 1px var(--tint-2);
+}
+
+/* Speaker identity: the assistant is addressed by model name; the CLI behind
+   it stays in Settings, so the header is a quiet mono label + status dot. */
+.simple-shell .turn-speaker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+  user-select: none;
+}
+
+.simple-shell .speaker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.simple-shell .speaker-name {
+  font-family: var(--chat-mono);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: var(--text-tertiary);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hover-revealed action rows (assistant-ui message actions pattern). */
+.simple-shell .msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.simple-shell .turn:hover .msg-actions,
+.simple-shell .turn:focus-within .msg-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.simple-shell .turn .msg-actions {
+  margin-top: -9px;
+}
+
+.simple-shell .turn.user .msg-actions {
+  margin-top: 0;
+}
+
+.simple-shell .msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.simple-shell .msg-action-btn:hover,
+.simple-shell .msg-action-btn.done {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .msg-time {
+  padding: 0 6px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.simple-shell .find-mark {
+  background: color-mix(in srgb, var(--g-warning) 38%, transparent);
+  color: var(--text-primary);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Day separator between turns from different days. */
+.simple-shell .day-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 -2px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.simple-shell .day-sep::before,
+.simple-shell .day-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* ── Streaming text: words land tinted, settle into ink, caret pulses ─── */
+
+.simple-shell .prose {
+  white-space: normal;
+}
+
+.simple-shell .stream-words {
+  white-space: pre-wrap;
+}
+
+.simple-shell .sw {
+  animation: word-in 0.5s ease both;
+}
+
+.simple-shell .sw.fresh {
+  color: var(--chat-stream);
+  transition: color 0.7s ease;
+}
+
+.simple-shell .stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--chat-stream);
+  animation: caret-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes caret-pulse {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* ── Markdown prose ────────────────────────────────────────────────────── */
+
+.simple-shell .md {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.simple-shell .md > :first-child,
+.simple-shell .md > :first-child > :first-child {
+  margin-top: 0;
+}
+
+.simple-shell .md > :last-child,
+.simple-shell .md > :last-child > :last-child {
+  margin-bottom: 0;
+}
+
+.simple-shell .md p {
+  margin: 0 0 10px;
+}
+
+.simple-shell .md h1,
+.simple-shell .md h2,
+.simple-shell .md h3,
+.simple-shell .md h4 {
+  margin: 18px 0 8px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.simple-shell .md > h1:first-child,
+.simple-shell .md > h2:first-child,
+.simple-shell .md > h3:first-child,
+.simple-shell .md > h4:first-child {
+  margin-top: 0;
+}
+
+.simple-shell .md h1 {
+  font-size: 1.3em;
+}
+
+.simple-shell .md h2 {
+  font-size: 1.2em;
+}
+
+.simple-shell .md h3 {
+  font-size: 1.08em;
+}
+
+.simple-shell .md h4 {
+  font-size: 1em;
+}
+
+.simple-shell .md ul,
+.simple-shell .md ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+
+.simple-shell .md li {
+  margin: 3px 0;
+}
+
+.simple-shell .md li::marker {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .md blockquote {
+  margin: 0 0 10px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.simple-shell .md a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--text-primary) 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.simple-shell .md a:hover {
+  text-decoration-color: currentColor;
+}
+
+.simple-shell .md hr {
+  border: 0;
+  height: 1px;
+  margin: 14px 0;
+  background: var(--border-subtle);
+}
+
+.simple-shell .md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.simple-shell .md table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.simple-shell .md th,
+.simple-shell .md td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.simple-shell .md th {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.simple-shell .md input[type="checkbox"] {
+  accent-color: var(--text-primary);
+  margin-right: 4px;
+}
+
+.simple-shell .md-inline-code {
+  font-family: var(--chat-mono);
+  font-size: 0.85em;
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  border-radius: 5px;
+  padding: 1.5px 5px;
+}
+
+/* Code block: header bar (language + copy) over a dark mono body. */
+.simple-shell .md-code {
+  margin: 0 0 10px;
+  border-radius: 10px;
+  background: var(--bg-code);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  overflow: hidden;
+}
+
+.simple-shell .md-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.simple-shell .md-code-lang {
+  font-family: var(--chat-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .md-code-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.simple-shell .md-code-copy:hover,
+.simple-shell .md-code-copy.done {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .md-code-body {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: var(--chat-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+/* highlight.js palette tuned for the graphite surfaces. */
+.simple-shell .hljs-comment,
+.simple-shell .hljs-quote {
+  color: #7d8590;
+  font-style: italic;
+}
+
+.simple-shell .hljs-keyword,
+.simple-shell .hljs-selector-tag,
+.simple-shell .hljs-literal,
+.simple-shell .hljs-type {
+  color: #ff7b72;
+}
+
+.simple-shell .hljs-string,
+.simple-shell .hljs-regexp {
+  color: #a5d6ff;
+}
+
+.simple-shell .hljs-number,
+.simple-shell .hljs-symbol,
+.simple-shell .hljs-bullet,
+.simple-shell .hljs-meta {
+  color: #79c0ff;
+}
+
+.simple-shell .hljs-title,
+.simple-shell .hljs-title.class_,
+.simple-shell .hljs-title.function_,
+.simple-shell .hljs-section {
+  color: #d2a8ff;
+}
+
+.simple-shell .hljs-attr,
+.simple-shell .hljs-attribute,
+.simple-shell .hljs-variable,
+.simple-shell .hljs-template-variable,
+.simple-shell .hljs-built_in {
+  color: #ffa657;
+}
+
+.simple-shell .hljs-deletion {
+  color: #ffa198;
+}
+
+.simple-shell .hljs-addition {
+  color: #7ee787;
+}
+
+html[data-theme="light"] .simple-shell .hljs-comment,
+html[data-theme="light"] .simple-shell .hljs-quote {
+  color: #57606a;
+}
+
+html[data-theme="light"] .simple-shell .hljs-keyword,
+html[data-theme="light"] .simple-shell .hljs-selector-tag,
+html[data-theme="light"] .simple-shell .hljs-literal,
+html[data-theme="light"] .simple-shell .hljs-type {
+  color: #cf222e;
+}
+
+html[data-theme="light"] .simple-shell .hljs-string,
+html[data-theme="light"] .simple-shell .hljs-regexp {
+  color: #0a3069;
+}
+
+html[data-theme="light"] .simple-shell .hljs-number,
+html[data-theme="light"] .simple-shell .hljs-symbol,
+html[data-theme="light"] .simple-shell .hljs-bullet,
+html[data-theme="light"] .simple-shell .hljs-meta {
+  color: #0550ae;
+}
+
+html[data-theme="light"] .simple-shell .hljs-title,
+html[data-theme="light"] .simple-shell .hljs-title.class_,
+html[data-theme="light"] .simple-shell .hljs-title.function_,
+html[data-theme="light"] .simple-shell .hljs-section {
+  color: #8250df;
+}
+
+html[data-theme="light"] .simple-shell .hljs-attr,
+html[data-theme="light"] .simple-shell .hljs-attribute,
+html[data-theme="light"] .simple-shell .hljs-variable,
+html[data-theme="light"] .simple-shell .hljs-template-variable,
+html[data-theme="light"] .simple-shell .hljs-built_in {
+  color: #953800;
+}
+
+html[data-theme="light"] .simple-shell .hljs-deletion {
+  color: #82071e;
+}
+
+html[data-theme="light"] .simple-shell .hljs-addition {
+  color: #116329;
+}
+
+/* ── Thinking indicator (dot + shimmer label + tabular timer) ─────────── */
+
+.think {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.think-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chat-stream);
+  animation: think-pulse 1.6s ease-in-out infinite;
+}
+
+.think-label {
+  background: linear-gradient(
+    90deg,
+    var(--text-secondary) 0%,
+    var(--text-secondary) 35%,
+    var(--text-primary) 50%,
+    var(--text-secondary) 65%,
+    var(--text-secondary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    think-shimmer 2.2s linear infinite,
+    think-enter 0.3s ease both;
+}
+
+.think-time {
+  margin-left: auto;
+  font-family: var(--chat-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.think-thread {
+  padding: 2px 2px 4px;
+}
+
+@keyframes think-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes think-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+
+  to {
+    background-position: -50% 0;
+  }
+}
+
+@keyframes think-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+/* ── Reasoning trace: smooth expand, live shimmer, tabular durations ──── */
+
+.simple-shell .bui-trace-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  padding: 0;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.simple-shell .bui-trace.open .bui-trace-body {
+  grid-template-rows: 1fr;
+}
+
+.simple-shell .bui-trace-steps {
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 10px 10px;
+}
+
+.simple-shell .bui-trace.live .bui-trace-label {
+  background: linear-gradient(
+    90deg,
+    var(--text-primary) 0%,
+    var(--text-primary) 35%,
+    var(--g-warning) 50%,
+    var(--text-primary) 65%,
+    var(--text-primary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: think-shimmer 2.2s linear infinite;
+}
+
+.simple-shell .bui-step-dur {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}
+
+.simple-shell .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Tool chips: icons, status dots, unified surfaces ─────────────────── */
+
+.simple-shell .bui-chip-head.static {
+  cursor: default;
+}
+
+.simple-shell .bui-tool-icon {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.simple-shell .bui-chip-meta {
+  display: inline-flex;
+  align-items: center;
+}
+
+.simple-shell .bui-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.simple-shell .bui-dot.ok {
+  background: var(--g-success);
+}
+
+.simple-shell .bui-dot.bad {
+  background: var(--g-danger);
+}
+
+.simple-shell .bui-dot.live {
+  background: var(--g-warning);
+  animation: think-pulse 1.4s ease-in-out infinite;
+}
+
+.simple-shell .bui-chip.failed {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 0 0 1px color-mix(in srgb, var(--g-danger) 28%, transparent);
+}
+
+.simple-shell .bui-chip-body {
+  animation: chip-in 0.18s ease both;
+}
+
+/* Pre blocks own their padding so the code edge aligns with the chip head. */
+.simple-shell .bui-chip .term-out,
+.simple-shell .bui-chip .tool-args,
+.simple-shell .bui-chip .tool-output {
+  padding: 8px 0;
+  margin: 0;
+  font-family: var(--chat-mono);
+}
+
+.simple-shell .bui-chip .tool-args + .tool-output {
+  margin-top: 6px;
+}
+
+/* Checkpoint rows inside the chip body. */
+.simple-shell .bui-chip .cp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: var(--radius-control);
+  font-size: 12.5px;
+}
+
+.simple-shell .bui-chip .cp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  flex-shrink: 0;
+}
+
+.simple-shell .bui-chip .cp-row.latest .cp-dot {
+  background: var(--g-success);
+}
+
+.simple-shell .bui-chip .cp-id {
+  font-family: var(--chat-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .bui-chip .cp-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.simple-shell .bui-chip .cp-time {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Data table inside the chip body. */
+.simple-shell .bui-chip-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.simple-shell .bui-chip-body th,
+.simple-shell .bui-chip-body td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.simple-shell .bui-chip-body th {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.simple-shell .bui-chip-body tr:last-child td {
+  border-bottom: 0;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+/* ── Error banner (assistant-ui error state) ──────────────────────────── */
+
+.bui-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--g-danger) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g-danger) 22%, transparent);
+  animation: error-in 0.3s ease both;
+}
+
+.bui-error-icon {
+  color: var(--g-danger);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.bui-error-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bui-error-text b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bui-error-text span {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.bui-error-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--g-danger) 14%, transparent);
+  color: var(--g-danger);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bui-error-retry:hover {
+  background: color-mix(in srgb, var(--g-danger) 22%, transparent);
+}
+
+.bui-error-retrying {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+@keyframes error-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* ── Composer refinements: staggered suggestion pills ─────────────────── */
+
+.simple-shell .composer-suggest .chip {
+  animation: chip-in 0.35s ease both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .simple-shell .sw,
+  .simple-shell .stream-caret,
+  .simple-shell .think-dot,
+  .simple-shell .think-label,
+  .simple-shell .bui-trace.live .bui-trace-label,
+  .simple-shell .bui-dot.live,
+  .simple-shell .spin,
+  .simple-shell .bui-chip-body,
+  .simple-shell .bui-error,
+  .simple-shell .composer-suggest .chip,
+  .simple-shell .thread-followups .chip,
+  .simple-shell .cmenu .popover-panel,
+  .stat-value,
+  .typing-dots i,
+  .thread-anchor {
+    animation: none;
+  }
+
+  .gen-cell {
+    transition: none;
+  }
+
+  .simple-shell .msg-actions,
+  .simple-shell .bui-trace-body,
+  .simple-shell .thread-anchor {
+    transition: none;
+  }
+
+  .simple-shell .sw.fresh {
+    transition: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Composer surface, assistant-ui Elements anatomy — one soft rounded card:
+   input on top, attachments above it, and a toolbar that lives inside the
+   same surface (no divider). The model pill names the chat counterpart; the
+   send control is the only strong fill. CLI/API connections are managed in
+   Settings, reached from the model picker's footer.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.simple-shell .composer {
+  border: 1px solid var(--border-subtle);
+  border-radius: 22px;
+  box-shadow: var(--composer-shadow);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.2s ease;
+}
+
+.simple-shell .composer:hover {
+  border-color: var(--border-strong);
+}
+
+.simple-shell .composer.focused {
+  border-color: color-mix(in srgb, var(--border-focus) 55%, transparent);
+  box-shadow:
+    var(--composer-shadow),
+    0 0 0 3px color-mix(in srgb, var(--border-focus) 18%, transparent);
+}
+
+.simple-shell .composer.running {
+  border-color: color-mix(in srgb, var(--g-warning) 45%, transparent);
+  box-shadow:
+    var(--composer-shadow),
+    0 0 0 3px color-mix(in srgb, var(--g-warning) 12%, transparent);
+}
+
+/* Live status strip inside the input card. */
+.simple-shell .composer-status {
+  padding: 12px 16px 0;
+  font-size: 12px;
+}
+
+.simple-shell .composer-status .think-time {
+  font-size: 11px;
+}
+
+.simple-shell .composer-context {
+  padding: 12px 16px 0;
+  gap: 6px;
+}
+
+.simple-shell .context-lead {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-right: 2px;
+}
+
+.simple-shell .ref-chip {
+  height: 24px;
+  padding: 0 5px 0 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-main);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.simple-shell .ref-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.simple-shell .composer-field {
+  padding: 13px 16px 6px;
+}
+
+.simple-shell .composer textarea {
+  min-height: 48px;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+/* Toolbar shares the composer surface — the old hairline divider is gone;
+   every control is the same 30px ghost, the send control carries the fill. */
+.simple-shell .composer-bar {
+  padding: 6px 10px 10px 12px;
+  gap: 4px;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.simple-shell .composer-bar .tool-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-tertiary);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.simple-shell .composer-bar .tool-btn:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .composer-bar .popover-trigger {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  gap: 6px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.simple-shell .composer-bar .popover-trigger:hover,
+.simple-shell .composer-bar .popover.open .popover-trigger {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .composer-bar .g-chip-icon .popover-trigger {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 9px;
+}
+
+.simple-shell .pop-count {
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bg-active, var(--bg-hover));
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.simple-shell .send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  box-shadow: none;
+  color: var(--text-tertiary);
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.simple-shell .send-btn:not(:disabled) {
+  background: var(--text-primary);
+  border-color: transparent;
+  color: var(--bg-elevated);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--text-primary) 25%, transparent);
+}
+
+.simple-shell .send-btn:hover:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.simple-shell .send-btn.stop {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.simple-shell .send-btn.stop:hover {
+  border-color: var(--g-danger);
+  color: var(--g-danger);
+  transform: none;
+}
+
+/* Suggestion pills: quiet outline chips that lift on hover. */
+.simple-shell .composer-suggest {
+  padding: 4px 14px 2px;
+}
+
+.simple-shell .composer-suggest .chip {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  box-shadow: none;
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.simple-shell .composer-suggest .chip svg {
+  color: var(--text-tertiary);
+  transition: color 0.12s ease;
+}
+
+.simple-shell .composer-suggest .chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--card-shadow);
+}
+
+.simple-shell .composer-suggest .chip:hover svg {
+  color: var(--text-primary);
+}
+
+/* ── Card refinement, round two ────────────────────────────────────────── */
+
+/* Border ring instead of the shadow-only hairline so cards read as surfaces
+   on both themes; heads get a hover wash and stronger hierarchy. */
+.simple-shell .bui-chip,
+.simple-shell .bui-trace {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+}
+
+.simple-shell .bui-chip-head {
+  min-height: 38px;
+  padding: 0 12px;
+  transition: background 0.12s ease;
+}
+
+.simple-shell .bui-chip-head:not(.static):hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.simple-shell .bui-trace-head {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 0;
+  transition: background 0.12s ease;
+}
+
+.simple-shell .bui-trace-head:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.simple-shell .bui-chip-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.simple-shell .bui-trace-label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.simple-shell .bui-chip-meta,
+.simple-shell .bui-trace-meta {
+  font-size: 11.5px;
+}
+
+.simple-shell .bui-tool-icon {
+  color: var(--text-secondary);
+}
+
+.simple-shell .bui-chip-body {
+  padding: 0 12px 12px;
+}
+
+.simple-shell .bui-trace-steps {
+  padding: 2px 12px 10px;
+}
+
+/* Pre blocks: own padding, code edge aligns with the head label. */
+.simple-shell .bui-chip .term-out,
+.simple-shell .bui-chip .tool-args,
+.simple-shell .bui-chip .tool-output {
+  padding: 10px 2px;
+  border-radius: 8px;
+}
+
+.simple-shell .term-out .cmd {
+  color: var(--text-tertiary);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Edit rows: colored kind badges and split +/- tallies. */
+.simple-shell .bui-file-row {
+  padding: 7px 6px;
+  border-radius: 8px;
+  gap: 9px;
+}
+
+.simple-shell .bui-file-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.simple-shell .edit-kind {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  border: 0;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-secondary);
+  font-family: var(--chat-mono);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.simple-shell .edit-kind.M {
+  background: color-mix(in srgb, var(--g-warning) 16%, transparent);
+  color: var(--g-warning);
+}
+
+.simple-shell .edit-kind.A {
+  background: color-mix(in srgb, var(--g-success) 16%, transparent);
+  color: var(--g-success);
+}
+
+.simple-shell .edit-kind.D {
+  background: color-mix(in srgb, var(--g-danger) 16%, transparent);
+  color: var(--g-danger);
+}
+
+.simple-shell .edit-path {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .bui-file-row:hover .edit-path {
+  color: var(--text-primary);
+}
+
+.simple-shell .edit-diff {
+  display: inline-flex;
+  gap: 6px;
+  font-family: var(--chat-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.simple-shell .diff-add {
+  color: var(--g-success);
+}
+
+.simple-shell .diff-del {
+  color: var(--g-danger);
+}
+
+.simple-shell .bui-chip-meta .diff-add,
+.simple-shell .bui-chip-meta .diff-del {
+  font-family: var(--chat-mono);
+}
+
+.simple-shell .bui-chip-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.simple-shell .bui-solid,
+.simple-shell .bui-ghost {
+  height: 27px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+/* Checkpoints: hover wash + tinted rollback link. */
+.simple-shell .bui-chip .cp-row {
+  padding: 7px 6px;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.simple-shell .bui-chip .cp-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.simple-shell .bui-chip .cp-row:hover .card-link {
+  color: var(--text-primary);
+}
+
+/* Data table: numeric cells right-aligned in mono, rows wash on hover. */
+.simple-shell .bui-chip-body tbody tr:hover td {
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+}
+
+.simple-shell .bui-chip-body td.num {
+  text-align: right;
+  font-family: var(--chat-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Approval card joins the same surface language. */
+.simple-shell .bui-approval {
+  max-width: 360px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+}
+
+.simple-shell .bui-approval-pad {
+  padding: 14px;
+}
+
+.simple-shell .bui-approval-q {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* Related-runs card at the thread tail matches the chip family. */
+.simple-shell .card.related-runs {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  background: var(--bg-elevated);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   GenerationLoader (assistant-ui loading-state): a 3×3 pixel matrix that
+   keeps time while the model has nothing to show yet, plus the typing
+   indicator's three pulsing dots for lightweight waiting states.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.gen-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 0 12px;
+}
+
+.view-loading .gen-loader {
+  padding: 0;
+}
+
+.gen-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 8px);
+  gap: 4px;
+}
+
+.gen-cell {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  opacity: 0.15;
+  transition: opacity 0.3s ease;
+}
+
+.gen-cell.on {
+  opacity: 0.9;
+}
+
+.gen-loader .gen-label {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--text-primary) 55%, transparent);
+}
+
+.gen-time {
+  margin-top: -8px;
+  font-family: var(--chat-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.typing-bubble {
+  width: fit-content;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.typing-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  animation: typing-pulse 1.2s ease-in-out infinite;
+}
+
+.typing-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* ── Timing footer / stopped run / follow-ups (assistant-ui messages) ──── */
+
+.turn-timing {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: -4px;
+  color: var(--text-tertiary);
+  font-family: var(--chat-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  user-select: none;
+}
+
+.stopped-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.stopped-note svg {
+  color: var(--g-warning);
+  flex-shrink: 0;
+}
+
+.stopped-note .card-link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.thread-followups {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: -2px;
+}
+
+.thread-followups .chip {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  animation: chip-in 0.35s ease both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.thread-followups .chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.thread-followups .chip svg {
+  color: var(--text-tertiary);
+}
+
+/* ── Inline editing of a sent user message ─────────────────────────────── */
+
+.bubble-user.editing {
+  max-width: 88%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 16px 16px 6px 16px;
+}
+
+.bubble-user.editing textarea {
+  width: 100%;
+  min-height: 60px;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.bubble-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.msg-action-btn.solid {
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+}
+
+.msg-action-btn.solid:hover {
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  opacity: 0.85;
+}
+
+/* ── Slash commands above the composer input ───────────────────────────── */
+
+.simple-shell .mention-list.slash-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.simple-shell .slash-list svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.simple-shell .slash-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.simple-shell .slash-hint {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+
+/* Truncated single-line text inside a menu item. */
+.simple-shell .cm-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Connection banner (assistant-ui thread connection-state) ──────────── */
+
+.conn-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 6px 16px 0;
+  padding: 7px 12px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--g-danger) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g-danger) 22%, transparent);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--g-danger);
+  animation: think-pulse 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Number-ticker entrance for usage stat values. */
+.stat-value {
+  animation: stat-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes stat-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.simple-shell .model-chip-name {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--chat-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Composer menus — assistant-ui ComposerMenu anatomy: a floating rounded
+   surface above the bar (scale-in entrance, cubic-bezier ease), full-width
+   icon rows at 13px, custom check squares instead of native checkboxes.
+   Replaces the old narrow uppercase select-style popovers.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.simple-shell .cmenu .popover-panel {
+  width: 300px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  transform-origin: bottom center;
+  animation: cm-in 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.simple-shell .cmenu-model .popover-panel {
+  width: 320px;
+}
+
+@keyframes cm-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(2px);
+  }
+}
+
+.simple-shell .cm-scroll {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 2px;
+}
+
+.simple-shell .cm-label {
+  padding: 10px 10px 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.simple-shell .cm-label:first-child {
+  padding-top: 6px;
+}
+
+.simple-shell .cm-item,
+.simple-shell .cm-check {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.simple-shell .cm-item > svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.simple-shell .cm-item:hover:not(:disabled),
+.simple-shell .cm-check:hover {
+  background: var(--bg-hover);
+}
+
+.simple-shell .cm-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.simple-shell .cm-item.on {
+  background: var(--bg-active);
+}
+
+.simple-shell .cm-item-text,
+.simple-shell .cm-check-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.simple-shell .cm-item-text small,
+.simple-shell .cm-check-text small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-shell .cm-check {
+  color: var(--text-secondary);
+}
+
+.simple-shell .cm-check.on {
+  color: var(--text-primary);
+}
+
+.simple-shell .cm-check-text b {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.simple-shell .cm-model .model-id {
+  font-family: var(--chat-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.simple-shell .cm-mark {
+  display: inline-flex;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.simple-shell .cm-box {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--bg-elevated);
+  flex-shrink: 0;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.simple-shell .cm-check.on .cm-box {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.simple-shell .cm-empty {
+  margin: 0;
+  padding: 6px 10px 10px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.simple-shell .cm-seg {
+  display: flex;
+  gap: 2px;
+  margin: 2px 6px 4px;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.simple-shell .cm-seg button {
+  flex: 1;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.simple-shell .cm-seg button.on {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--card-shadow);
+}
+
+.simple-shell .cm-warn {
+  margin: 6px 6px 2px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--g-warning) 10%, transparent);
+  color: var(--g-warning);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.simple-shell .cm-foot {
+  margin-top: 6px;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.simple-shell .cm-foot-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.simple-shell .cm-foot-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .cm-foot-btn svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.simple-shell .cm-foot-go {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-active, var(--bg-hover));
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+/* Plus trigger: the same 30px ghost square as the other bar controls, with
+   an ink count badge when skills or MCP servers are selected. */
+.simple-shell .cmenu-add .popover-trigger {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 9px;
+}
+
+.simple-shell .cm-trigger-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  font-size: 9px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.simple-shell .cmenu-worktree .popover-panel {
+  width: 320px;
+}
+
+.simple-shell .cm-worktree {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.simple-shell .cm-worktree .cm-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.simple-shell .cm-worktree-del {
+  width: 32px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.simple-shell .cm-worktree-del:hover {
+  background: var(--bg-hover);
+  color: var(--g-danger, #b4483a);
+}
+
+.simple-shell .wt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 10px 8px;
+}
+
+.simple-shell .wt-form input {
+  height: 30px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-input, var(--bg-main));
+  color: var(--text-primary);
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.simple-shell .wt-form button {
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.simple-shell .wt-form button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.simple-shell .schedule-confirm {
+  align-items: center;
+}
+
+.simple-shell .schedule-confirm-summary {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.simple-shell .schedule-confirm-cron {
+  font-family: var(--chat-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: var(--bg-hover);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.simple-shell .schedule-confirm-prompt {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .schedule-confirm-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.simple-shell .schedule-confirm-btn.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.simple-shell .schedule-confirm-btn.ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}

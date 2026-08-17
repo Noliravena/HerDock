@@ -1,0 +1,1542 @@
+/* Design surface redesign — dark adaptation + component polish.
+   The design page was authored as a light cream canvas; this layer remaps
+   its private tokens to the Grok dark shell and rebuilds the key components
+   (header, routes, doc tabs, canvas stage, zoom bar, inspector, session
+   panel). Loaded after grok-pages.css. */
+
+/* ── 0. Token remap: the light canvas becomes a dark studio ─────────── */
+.simple-shell {
+  --design-page: var(--bg-sidebar);
+  --canvas-dot: var(--dot-grid);
+}
+.simple-shell .design-center,
+.simple-shell .design-surface {
+  background: var(--design-page);
+}
+
+/* Hardcoded light values from the original handoff */
+.simple-shell .design-brand {
+  border-right: 1px solid var(--hairline);
+}
+.simple-shell .design-brand-icon {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .design-editing-card li > i {
+  background: var(--bg-active);
+}
+.simple-shell .design-variant-frame {
+  box-shadow: var(--shadow-card);
+  outline: 1px solid var(--tint-3);
+}
+.simple-shell .design-variant-frame.active {
+  outline: 2px solid var(--g-accent);
+  outline-offset: 3px;
+  box-shadow: var(--shadow-raised);
+}
+.simple-shell .design-preview-overlay {
+  background: var(--scrim);
+}
+.simple-shell .design-project-cover em {
+  background: var(--glass-chip);
+  color: var(--text-secondary);
+  backdrop-filter: blur(4px);
+}
+.simple-shell .design-system-swatch > i {
+  border: 1px solid var(--tint-3);
+}
+.simple-shell .payload {
+  background: var(--bg-code);
+  color: var(--text-secondary);
+}
+.simple-shell .detail-actions .solid {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .detail-actions .solid:hover {
+  background: var(--g-accent-hover);
+}
+
+/* ── 1. Header ───────────────────────────────────────────────────────── */
+.simple-shell .design-header {
+  height: 48px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--design-page);
+}
+.simple-shell .design-brand {
+  gap: 10px;
+  padding: 0 16px 0 16px;
+}
+.simple-shell .design-brand-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.simple-shell .design-brand-copy strong {
+  font-size: 13px;
+  font-weight: 590;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+}
+.simple-shell .design-brand-copy small {
+  font-size: 9.5px;
+  color: var(--text-tertiary);
+}
+.simple-shell .design-routes button {
+  gap: 7px;
+  padding: 0 13px;
+  font-size: 12.5px;
+  font-weight: 450;
+  color: var(--text-secondary);
+  transition: color 120ms ease;
+}
+.simple-shell .design-routes button svg {
+  opacity: 0.75;
+}
+.simple-shell .design-routes button:hover {
+  color: var(--text-primary);
+}
+.simple-shell .design-routes button.active {
+  color: var(--text-primary);
+  font-weight: 560;
+}
+.simple-shell .design-routes button.active svg {
+  opacity: 1;
+}
+.simple-shell .design-routes button.active > i {
+  left: 11px;
+  right: 11px;
+  height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--g-accent);
+}
+/* Header chips — quiet ghost controls */
+.simple-shell .design-chip,
+.simple-shell .design-system-pick > button {
+  height: 28px;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .design-chip:hover:not(:disabled),
+.simple-shell .design-system-pick > button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .design-chip.icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+.simple-shell .design-panel-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+.simple-shell .design-panel-toggle:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .design-panel-toggle.active {
+  color: var(--g-accent);
+  background: var(--g-accent-muted);
+}
+/* System dropdown — elevated dark card */
+.simple-shell .design-system-pick ul {
+  top: 34px;
+  width: 264px;
+  padding: 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+.simple-shell .design-system-pick li button {
+  padding: 8px 9px;
+  border-radius: 8px;
+}
+.simple-shell .design-system-pick li button:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .design-system-pick li button.active {
+  background: var(--g-accent-muted);
+}
+
+/* ── 2. Doc tabs + viewport segmented control ────────────────────────── */
+.simple-shell .design-doc-tabs {
+  border-bottom: 1px solid var(--hairline);
+}
+.simple-shell .design-doc-tabs > button {
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .design-doc-tabs > button:hover {
+  color: var(--text-primary);
+}
+.simple-shell .design-doc-tabs > button.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-weight: 550;
+  box-shadow: inset 0 -2px 0 var(--g-accent);
+}
+.simple-shell .design-doc-size {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .seg {
+  border-radius: 8px;
+}
+.simple-shell .seg button {
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .seg button.active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-btn);
+}
+
+/* ── 3. Canvas stage ─────────────────────────────────────────────────── */
+.simple-shell .design-canvas-stage {
+  padding: 30px 34px 86px;
+}
+.simple-shell .design-turn-head .mono {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+}
+.simple-shell .design-turn-head > i {
+  background: var(--tint-2);
+}
+.simple-shell .design-turn-head small {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+.simple-shell .design-variant-badge {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.simple-shell .design-variant-badge.active {
+  color: var(--text-primary);
+}
+.simple-shell .design-variant-badge .badge {
+  border-radius: 6px;
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.simple-shell .design-variant-badge.active .badge {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .design-variant-frame {
+  border-radius: 12px;
+}
+/* Floating per-variant actions — glass rail */
+.simple-shell .design-card-actions {
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-raised);
+}
+.simple-shell .design-card-actions button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .design-card-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .design-canvas-empty {
+  color: var(--text-tertiary);
+}
+.simple-shell .design-canvas-empty strong {
+  color: var(--text-secondary);
+}
+/* Zoom bar — floating glass pill */
+.simple-shell .design-zoom-bar {
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-raised);
+}
+.simple-shell .design-zoom-bar > button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.simple-shell .design-zoom-bar > button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .design-zoom-bar > button:disabled {
+  opacity: 0.4;
+}
+.simple-shell .design-zoom-bar .zoom-label {
+  min-width: 44px;
+  height: 28px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.simple-shell .design-zoom-bar > i {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--border-subtle);
+}
+
+/* ── 4. Inspector panel ──────────────────────────────────────────────── */
+.simple-shell .design-inspector-panel {
+  background: var(--design-page);
+  border-left: 1px solid var(--hairline);
+}
+.simple-shell .inspector-tabs {
+  border-bottom: 1px solid var(--hairline);
+}
+.simple-shell .inspector-tabs button {
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: color 120ms ease;
+}
+.simple-shell .inspector-tabs button.active {
+  color: var(--text-primary);
+  font-weight: 550;
+  box-shadow: inset 0 -2px 0 var(--g-accent);
+}
+.simple-shell .tweak-selection strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+}
+.simple-shell .tweak-legend {
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+}
+.simple-shell .tweak-stepper > button {
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.simple-shell .tweak-stepper > button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .tweak-track {
+  background: var(--tint-2);
+  border-radius: 999px;
+}
+.simple-shell .tweak-track > i {
+  background: var(--g-accent);
+  border-radius: 999px;
+}
+.simple-shell .tweak-value {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+/* Preview toggles become accent switches */
+.simple-shell .tweak-toggle {
+  border-radius: 8px;
+}
+.simple-shell .tweak-toggle:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .tweak-toggle > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.simple-shell .tweak-toggle > i {
+  width: 30px;
+  height: 17px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--tint-5);
+  transition: background 150ms ease;
+}
+.simple-shell .tweak-toggle > i > em {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.simple-shell .tweak-toggle > i.on {
+  background: var(--g-accent);
+}
+.simple-shell .tweak-toggle > i.on > em {
+  transform: translateX(13px);
+  background: var(--g-accent-contrast);
+}
+.simple-shell .tweak-field select {
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.simple-shell .tweak-apply > button {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+  border-radius: 8px;
+  font-weight: 520;
+}
+.simple-shell .tweak-apply > button:hover:not(:disabled) {
+  background: var(--g-accent-hover);
+}
+.simple-shell .tweak-apply > button:disabled {
+  background: var(--bg-active);
+  color: var(--text-tertiary);
+}
+.simple-shell .version-tag {
+  color: var(--g-accent);
+}
+.simple-shell .inspector-note {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+.simple-shell .inspector-note.error {
+  color: var(--g-danger);
+}
+
+/* ── 5. Session panel (design chat rail) ─────────────────────────────── */
+.simple-shell .design-session-panel {
+  background: var(--design-page);
+  border-right: 1px solid var(--hairline);
+}
+.simple-shell .canvas-panel-head {
+  border-bottom: 1px solid var(--hairline);
+}
+.simple-shell .design-bubble.user {
+  border-radius: 12px 12px 4px 12px;
+  background: var(--g-accent-muted);
+  color: var(--text-primary);
+  font-size: 12.5px;
+}
+
+/* ── 6. Projects / systems / assets routes ───────────────────────────── */
+.simple-shell .design-project-card,
+.simple-shell .design-system-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  transition:
+    border-color 120ms ease,
+    box-shadow 140ms ease;
+}
+.simple-shell .design-project-card:hover,
+.simple-shell .design-system-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── assistant-ui elements applied to the design surface ─────────────────
+   Loading state, speaker, timing, stopped-run, follow-ups, plus the rest of
+   the catalog that has a design-page data source: typing, error, plan, job
+   progress, approval, spec sheet, artifact card, empty state, scroll anchor,
+   web-preview chrome, comparison, recommendation, composer menus. ──────── */
+
+.simple-shell .design-gen-loader {
+  margin: auto;
+}
+
+.simple-shell .design-surface > .design-conn-banner {
+  margin: 8px 12px 0;
+}
+
+.simple-shell .design-session-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.simple-shell .design-session-anchor {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+.simple-shell .canvas-panel-head {
+  min-height: 33px;
+  height: auto;
+  padding: 4px 10px;
+}
+
+.simple-shell .canvas-panel-head .design-status-pill {
+  margin-left: auto;
+}
+
+.simple-shell .design-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.simple-shell .design-status-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-shell .design-status-pill em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-status-pill button {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.simple-shell .design-status-pill .ok {
+  color: var(--g-success);
+}
+
+.simple-shell .design-day-sep {
+  margin: 4px 0;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-speaker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+  margin: -2px 0 4px;
+  user-select: none;
+}
+
+.simple-shell .design-speaker .speaker-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-shell .design-speaker em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-msg-actions {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.simple-shell .design-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.simple-shell .design-bubble.agent:hover .design-copy-btn,
+.simple-shell .design-bubble.user:hover .design-copy-btn,
+.simple-shell .design-copy-btn:focus-visible,
+.simple-shell .design-copy-btn.done {
+  opacity: 1;
+}
+
+.simple-shell .design-copy-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .design-copy-btn.done {
+  color: var(--g-success);
+}
+
+.simple-shell .design-bubble.user {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--g-accent-muted);
+  color: var(--text-primary);
+  font-size: 12.5px;
+}
+
+.simple-shell .design-bubble.user p {
+  margin: 0;
+}
+
+.simple-shell .design-msg-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.simple-shell .design-msg-meta em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-stream .fresh {
+  color: var(--g-accent);
+  transition: color 0.7s ease;
+}
+
+.simple-shell .design-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 12px;
+  margin-left: 2px;
+  vertical-align: -1px;
+  border-radius: 999px;
+  background: var(--g-accent);
+  animation: think-pulse 1.2s ease-in-out infinite;
+}
+
+.simple-shell .design-timing {
+  margin: 2px 0 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.simple-shell .design-stopped-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.simple-shell .design-stopped-note .run-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--g-warning);
+  flex-shrink: 0;
+}
+
+.simple-shell .design-stopped-note .card-link {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--g-accent);
+  cursor: pointer;
+}
+
+.simple-shell .design-queued {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.simple-shell .design-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--g-danger) 10%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.simple-shell .design-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--g-danger);
+}
+
+.simple-shell .design-error span {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.simple-shell .design-error strong {
+  color: var(--g-danger);
+  font-weight: 560;
+}
+
+.simple-shell .design-error small {
+  color: color-mix(in srgb, var(--g-danger) 70%, transparent);
+}
+
+.simple-shell .design-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g-danger);
+  cursor: pointer;
+}
+
+.simple-shell .design-think {
+  padding: 4px 2px 2px;
+  font-size: 12px;
+}
+
+.simple-shell .design-job,
+.simple-shell .design-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+}
+
+.simple-shell .design-job header,
+.simple-shell .design-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-shell .design-job header {
+  cursor: default;
+}
+
+.simple-shell .design-job strong,
+.simple-shell .design-plan-head span:first-child {
+  min-width: 0;
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.simple-shell .design-job .mono,
+.simple-shell .design-plan-head .mono {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+}
+
+.simple-shell .design-job header button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.simple-shell .design-job-track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.simple-shell .design-job-track.thin {
+  height: 3px;
+}
+
+.simple-shell .design-job-track > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--g-accent);
+  transition: width 0.4s ease;
+}
+
+.simple-shell .design-job-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.simple-shell .design-job-stages span {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+
+.simple-shell .design-job-stages span.active {
+  color: var(--text-primary);
+}
+
+.simple-shell .design-job-stages span.done {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-plan ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.simple-shell .design-plan li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-plan li.running {
+  color: var(--text-primary);
+}
+
+.simple-shell .design-plan li.done {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-plan li > i {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--bg-active);
+  font-style: normal;
+  font-size: 9px;
+}
+
+.simple-shell .design-editing-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.simple-shell .design-approval-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.simple-shell .design-approval-card header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.simple-shell .design-approval-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-approval-card small {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-approval-cmd {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .design-approval-card footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.simple-shell .design-tool-timeline,
+.simple-shell .design-edits {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.simple-shell .design-tool-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simple-shell .design-tool-timeline li,
+.simple-shell .design-edits button,
+.simple-shell .design-path-tree button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-shell .design-edits button:hover,
+.simple-shell .design-path-tree button:hover {
+  background: var(--bg-hover);
+}
+
+.simple-shell .design-tool-timeline strong {
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.simple-shell .design-tool-timeline small,
+.simple-shell .design-edits .mono,
+.simple-shell .design-path-tree .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-edits .legend,
+.simple-shell .design-path-tree .legend {
+  padding: 0 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-edits em {
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.simple-shell .design-edits b {
+  color: var(--g-success);
+  font-weight: 550;
+}
+
+.simple-shell .design-edits i {
+  color: var(--g-danger);
+  font-style: normal;
+}
+
+.simple-shell .design-path-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.simple-shell .design-path-tree button.active {
+  background: var(--g-accent-muted);
+}
+
+.simple-shell .design-spec header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.simple-shell .design-spec header strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.simple-shell .design-spec header small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.simple-shell .inspector-row .emphasis {
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
+.simple-shell .design-ticker {
+  display: inline-block;
+  animation: stat-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.simple-shell .design-cost-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-cost-meter .design-job-track {
+  flex: 1;
+}
+
+.simple-shell .design-recommend,
+.simple-shell .design-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.simple-shell .design-recommend .question {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.simple-shell .design-recommend .body {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .design-recommend .accepted {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-recommend footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.simple-shell .design-recommend .confidence {
+  margin-right: auto;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-recommend footer button,
+.simple-shell .design-compare-row button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.simple-shell .design-recommend footer button.primary {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+
+.simple-shell .design-compare-row {
+  display: flex;
+  gap: 6px;
+}
+
+.simple-shell .design-compare-row button {
+  flex: 1;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  text-align: left;
+}
+
+.simple-shell .design-compare-row button.pick {
+  background: var(--g-accent-muted);
+}
+
+.simple-shell .design-compare-row button span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.simple-shell .design-compare-row em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--g-accent);
+}
+
+.simple-shell .design-compare-row ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simple-shell .design-compare-row li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .design-compare-row li.absent {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-compare p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-empty-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: auto;
+  max-width: 360px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.simple-shell .design-empty-hero h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
+
+.simple-shell .design-empty-hero p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-empty-suggestions,
+.simple-shell .design-empty-hero .aui-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.simple-shell .design-empty-suggestions button,
+.simple-shell .design-empty-hero .aui-empty-actions button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  animation: design-chip-in 0.4s ease both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+.simple-shell .design-empty-suggestions button:hover,
+.simple-shell .design-empty-hero .aui-empty-actions button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.simple-shell .design-followups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.simple-shell .design-followups button {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+  animation: design-chip-in 0.35s ease both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.simple-shell .design-followups button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.simple-shell .design-composer-card {
+  position: relative;
+}
+
+.simple-shell .design-composer-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 4;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+
+.simple-shell .design-composer-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-shell .design-composer-menu button.active,
+.simple-shell .design-composer-menu button:hover {
+  background: var(--bg-hover);
+}
+
+.simple-shell .design-composer-menu small {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+}
+
+.simple-shell .design-plus-wrap {
+  position: relative;
+}
+
+.simple-shell .design-composer-menu.plus {
+  left: 0;
+  right: auto;
+  width: 220px;
+  bottom: calc(100% + 8px);
+}
+
+.simple-shell .design-composer-row .send.stop {
+  background: var(--text-primary);
+}
+
+.simple-shell .stop-sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--bg-elevated);
+}
+
+.simple-shell .design-variant-frame {
+  cursor: default;
+}
+
+.simple-shell .design-variant-chrome {
+  gap: 4px;
+}
+
+.simple-shell .design-variant-chrome .mono {
+  flex: 1;
+}
+
+.simple-shell .design-variant-chrome button {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.simple-shell .design-variant-chrome button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.simple-shell .design-preview-hit {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.simple-shell .design-preview-overlay header .ghost {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.simple-shell .design-artifact-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-shell .design-project-card {
+  cursor: default;
+}
+
+.simple-shell .design-project-cover {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+}
+
+.simple-shell .design-artifact-icon,
+.simple-shell .design-artifact-card .aui-artifact-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-artifact-icon.pulse,
+.simple-shell .design-artifact-card .aui-artifact-icon.pulse {
+  animation: think-pulse 1.4s ease-in-out infinite;
+}
+
+.simple-shell .design-artifact-card span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.simple-shell .design-artifact-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.simple-shell .design-artifact-card small {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .design-artifact-card .hover-arrow {
+  color: var(--text-tertiary);
+  opacity: 0;
+}
+
+.simple-shell .design-artifact-card:hover .hover-arrow {
+  opacity: 1;
+}
+
+.simple-shell .design-confirm-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+}
+
+.simple-shell .design-confirm {
+  width: min(360px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+
+.simple-shell .design-confirm p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .design-confirm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.simple-shell .design-confirm footer button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.simple-shell .design-confirm footer button.primary {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+
+.simple-shell .design-checkpoint {
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+
+@keyframes design-chip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simple-shell .design-followups button,
+  .simple-shell .design-empty-suggestions button,
+  .simple-shell .design-caret,
+  .simple-shell .design-ticker,
+  .simple-shell .design-artifact-icon.pulse {
+    animation: none;
+  }
+}

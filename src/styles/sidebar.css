@@ -1,0 +1,395 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Sidebar surface — Beautiful UI "14 Sidebar Nav" chrome (tiny uppercase
+   section label, single-line workspace rows, two-line account card) over
+   assistant-ui thread-list row specs (13px title, mono stamp + status dot,
+   hover-swapped circular actions, rounded-xl rows, mono day headers).
+   Loaded after the grok layers so equal-specificity rules here win.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Section header reads like the mock's WORKSPACES label. */
+.simple-shell .g-l1-head {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.simple-shell .g-tree {
+  padding: 4px 10px 10px;
+}
+
+/* ── Workspace rows: one quiet line — avatar, name, count, caret. ──────── */
+
+.simple-shell .g-l2 {
+  gap: 8px;
+  height: 30px;
+  margin-top: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.simple-shell .ws-avatar {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--ws-accent, var(--text-tertiary)) 22%, transparent);
+  color: var(--ws-accent, var(--text-secondary));
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.simple-shell .ws-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.simple-shell .ws-text .ws-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+  transition: color 120ms ease;
+}
+
+.simple-shell .g-l2:hover .ws-name,
+.simple-shell .g-l2.open .ws-name {
+  color: var(--text-primary);
+}
+
+/* ws-sub is retired from the row; the active workspace shows branch/dirty on
+ * a dedicated sub-line so inactive rows stay single-line and calm. */
+.simple-shell .ws-sub {
+  display: none;
+}
+
+.simple-shell .ws-sub-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 1px 0 2px;
+  padding: 0 8px 0 32px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.simple-shell .ws-sub-line .ws-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.simple-shell .ws-sub-line .ws-diff {
+  color: var(--g-success);
+  flex-shrink: 0;
+}
+
+.simple-shell .ws-count {
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ── Thread rows: assistant-ui thread-list specs. ──────────────────────── */
+
+.simple-shell .session-row {
+  height: 30px;
+  margin: 0 0 0 10px;
+  width: calc(100% - 10px);
+  padding: 0 8px 0 22px;
+  border-radius: 10px;
+  gap: 7px;
+  font-size: 12.5px;
+}
+
+.simple-shell .session-row .name,
+.simple-shell .session-row.active .name {
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.simple-shell .session-row.active {
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.simple-shell .session-row .row-actions button {
+  border-radius: 999px;
+}
+
+.simple-shell .session-row .row-aside {
+  position: relative;
+  display: grid;
+  justify-items: end;
+  align-items: center;
+  min-width: 52px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.simple-shell .session-row .row-aside > * {
+  grid-area: 1 / 1;
+}
+
+.simple-shell .session-row .row-time {
+  display: flex;
+  opacity: 1;
+}
+
+.simple-shell .session-row .row-actions {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.simple-shell .session-row:hover .row-time,
+.simple-shell .session-row:focus-within .row-time {
+  opacity: 0;
+}
+
+.simple-shell .session-row:hover .row-actions,
+.simple-shell .session-row:focus-within .row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.simple-shell .session-row .row-actions button.danger:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.simple-shell .session-row.archived .name {
+  color: var(--text-tertiary);
+}
+
+/* Project row: count/caret by default, + / more on hover. */
+.simple-shell .ws-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.simple-shell .ws-row .g-l2 {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin-top: 0;
+  padding-right: 52px;
+}
+
+.simple-shell .ws-meta {
+  display: none;
+}
+
+.simple-shell .ws-row .ws-count,
+.simple-shell .ws-row .ws-caret {
+  transition: opacity 120ms ease;
+}
+
+.simple-shell .ws-actions {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.simple-shell .ws-row:hover .ws-actions,
+.simple-shell .ws-row:focus-within .ws-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.simple-shell .ws-row:hover .ws-count,
+.simple-shell .ws-row:hover .ws-caret,
+.simple-shell .ws-row:focus-within .ws-count,
+.simple-shell .ws-row:focus-within .ws-caret {
+  opacity: 0;
+}
+
+.simple-shell .ws-actions button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.simple-shell .ws-actions button:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.simple-shell .g-tree-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 2px 0 6px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  color: var(--text-secondary);
+}
+
+.simple-shell .g-tree-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+}
+
+.simple-shell .g-tree-search input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.simple-shell .g-archived-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 10px);
+  margin: 4px 0 0 10px;
+  padding: 4px 8px 4px 22px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.simple-shell .g-archived-head:hover {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  color: var(--text-secondary);
+}
+
+.simple-shell .g-archived-head span {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.simple-shell .g-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.simple-shell .g-empty button {
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.simple-shell .g-empty button:hover {
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  color: var(--text-primary);
+}
+
+/* Mono day headers between thread groups (thread-list "Today" pattern). */
+.simple-shell .g-day-head {
+  padding: 8px 8px 3px 32px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.simple-shell .g-day-head:first-child {
+  padding-top: 3px;
+}
+
+/* ── Account card: circle avatar, name + connection sub-line, gear. ────── */
+
+.simple-shell .g-account {
+  gap: 10px;
+  padding: 8px 14px;
+  min-height: 48px;
+}
+
+.simple-shell .g-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+
+.simple-shell .g-account-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+}
+
+.simple-shell .g-account-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-shell .g-account-sub {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Collapsed rail keeps the circular avatar centred. */
+.simple-shell .grok-sidebar.collapsed .g-account {
+  padding: 8px 0;
+  justify-content: center;
+}

@@ -1,0 +1,455 @@
+/* Refinement layer (assistant-ui / Beautiful UI components).
+   1px hairline borders, 8–12px radii, 500-weight labels, tabular numerals,
+   accent focus rings. Scoped to the Grok shell; loaded after grok-shell.css. */
+
+/* Focus rings — keyboard visibility on every interactive control */
+.simple-shell .g-page :is(button, input, textarea, select):focus-visible,
+.simple-shell .settings-modal :is(button, input, textarea, select):focus-visible,
+.simple-shell .g-files :is(button, input):focus-visible,
+.simple-shell .palette :is(input, button):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* Numeric alignment for stats, meters and clocks */
+.simple-shell .stat-value,
+.simple-shell .stat-delta,
+.simple-shell .mono,
+.simple-shell .bui-pulse-time,
+.simple-shell .bui-trace-meta,
+.simple-shell .bar-total,
+.simple-shell .bar-day,
+.simple-shell .bucket-row .v,
+.simple-shell .g-chat-meta,
+.simple-shell .usage-run-row .tokens,
+.simple-shell .cron {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── Page headers & tabs (Usage / Approvals / Activity / Skills / MCP) ── */
+.simple-shell .g-page-head h1 {
+  font-size: 15px;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+}
+.simple-shell .g-page-head .sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.simple-shell .g-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-hairline);
+}
+.simple-shell .g-tabs button {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.simple-shell .g-tabs button:hover {
+  color: var(--text-primary);
+}
+.simple-shell .g-tabs button.on {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px #0003;
+}
+
+/* ── Cards (stat cards, panel blocks) ── */
+.simple-shell .panel-block,
+.simple-shell .stat-card {
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+.simple-shell .stat-card {
+  padding: 16px 18px;
+}
+.simple-shell .stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+}
+.simple-shell .stat-value {
+  font-size: 22px;
+  font-weight: 590;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+.simple-shell .stat-delta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.simple-shell .panel-block-head strong {
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: 0;
+}
+.simple-shell .panel-block-head .sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.simple-shell .empty-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* ── Buttons: link / ghost / solid, unified 8px radius ── */
+.simple-shell .link-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--g-accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.simple-shell .link-btn:hover:not(:disabled) {
+  background: var(--g-accent-muted);
+}
+.simple-shell .link-btn:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.simple-shell .ghost-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.simple-shell .ghost-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+.simple-shell .ghost-btn:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.simple-shell .primary-btn,
+.simple-shell .bui-solid {
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+  font-size: 13px;
+  font-weight: 520;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.simple-shell .primary-btn:hover:not(:disabled),
+.simple-shell .bui-solid:hover:not(:disabled) {
+  background: var(--g-accent-hover);
+}
+.simple-shell .primary-btn:disabled,
+.simple-shell .bui-solid:disabled {
+  background: var(--bg-active);
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+/* ── Thread components ── */
+.simple-shell .bubble-user {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.simple-shell .card-tag {
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.03em;
+}
+.simple-shell .term-out,
+.simple-shell .tool-args,
+.simple-shell .tool-output {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.simple-shell .bui-chip-head {
+  transition: background 120ms ease;
+}
+.simple-shell .bui-caret {
+  transition: transform 150ms ease;
+}
+.simple-shell .bui-chip:not(.open) .bui-caret {
+  transform: rotate(-90deg);
+}
+
+/* ── Composer focus treatment ── */
+.simple-shell .composer.focused {
+  box-shadow: var(--shadow-card), 0 0 0 1.5px var(--border-focus);
+}
+
+/* ── Sidebar workspace files panel ── */
+.simple-shell .g-files {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 0 8px;
+}
+.simple-shell .g-files-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 6px;
+  margin-bottom: 4px;
+}
+.simple-shell .g-files-tools span {
+  flex: 1;
+}
+.simple-shell .g-files-tools button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.simple-shell .g-files-tools button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .g-files-tools button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.simple-shell .g-files-input {
+  display: flex;
+  gap: 4px;
+  margin: 0 6px 6px;
+}
+.simple-shell .g-files-input input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.simple-shell .g-files-input input::placeholder {
+  font-family: var(--font-sans);
+  color: var(--text-tertiary);
+}
+.simple-shell .g-files-input input:focus {
+  outline: none;
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 2px var(--g-accent-muted);
+}
+.simple-shell .g-files-input button {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.simple-shell .g-files-input button:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .g-files-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 6px 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+.simple-shell .g-files-results button {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.simple-shell .g-files-results button:hover {
+  background: var(--bg-hover);
+}
+.simple-shell .g-files-results button span {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-shell .g-files-results button small {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* File tree rows inside the sidebar */
+.simple-shell .g-files .file-tree {
+  min-height: 0;
+}
+.simple-shell .g-files .file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding-right: 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+.simple-shell .g-files .file-row:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .g-files .file-row.active {
+  background: var(--g-accent-muted);
+  color: var(--text-primary);
+}
+.simple-shell .g-files .file-row .fname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-shell .g-files .file-row .ftype {
+  width: 16px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.simple-shell .g-files .file-row .ftype.dir,
+.simple-shell .g-files .file-row .folder-icon {
+  color: var(--text-secondary);
+}
+.simple-shell .g-files .file-row .gst {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.simple-shell .g-files .file-row .gst.M,
+.simple-shell .g-files .file-row .gst.A {
+  color: var(--g-success);
+}
+.simple-shell .g-files .file-row .gst.D {
+  color: var(--g-danger);
+}
+.simple-shell .g-files .file-row .gst.U {
+  color: var(--g-warning);
+}
+
+/* ── Schedule form (用量页 · 定时任务) ── */
+.simple-shell .schedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--bg-input);
+  box-shadow: var(--shadow-hairline);
+}
+.simple-shell .schedule-form input,
+.simple-shell .schedule-form textarea {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  resize: vertical;
+}
+.simple-shell .schedule-form input::placeholder,
+.simple-shell .schedule-form textarea::placeholder {
+  color: var(--text-tertiary);
+}
+.simple-shell .schedule-form input:focus,
+.simple-shell .schedule-form textarea:focus {
+  outline: none;
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 2px var(--g-accent-muted);
+}
+.simple-shell .schedule-form button {
+  align-self: flex-start;
+}
+.simple-shell .cron {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-left: 6px;
+}
+
+/* ── Chat head (session title + meta) ── */
+.simple-shell .g-chat-title {
+  font-size: 14px;
+  font-weight: 560;
+  letter-spacing: -0.005em;
+}
+.simple-shell .g-chat-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ── Scrollbars: slimmer, unobtrusive ── */
+.simple-shell ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.simple-shell ::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  background-color: var(--scrollbar-thumb);
+}
+
