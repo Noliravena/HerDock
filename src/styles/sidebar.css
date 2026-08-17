@@ -8,11 +8,11 @@
 
 /* Section header reads like the mock's WORKSPACES label. */
 .simple-shell .g-l1-head {
-  height: 24px;
+  height: 26px;
   padding: 0 8px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
@@ -21,28 +21,141 @@
   padding: 4px 10px 10px;
 }
 
-/* ── Workspace rows: one quiet line — avatar, name, count, caret. ──────── */
-
-.simple-shell .g-l2 {
-  gap: 8px;
-  height: 30px;
-  margin-top: 4px;
-  padding: 0 6px;
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: 0;
+/* Type + icon scale: one step larger, one step bolder. */
+.simple-shell .g-brand {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
 
-.simple-shell .ws-avatar {
+.simple-shell .g-brand svg,
+.simple-shell .g-brand img {
+  width: 18px;
+  height: 18px;
+}
+
+.simple-shell .g-nav-item {
+  height: 34px;
+  gap: 11px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.simple-shell .g-nav-item.primary {
+  height: 36px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.simple-shell .g-nav-item.active,
+.simple-shell .g-nav-item.sub.active {
+  font-weight: 600;
+}
+
+.simple-shell .g-nav-ico {
+  width: 22px;
+  height: 22px;
+}
+
+/* ── Collapsible nav groups (assistant-ui / shadcn SidebarMenuSub). ── */
+
+.simple-shell .g-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.simple-shell .g-nav-group-head {
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.simple-shell .g-nav-group.has-active > .g-nav-group-head,
+.simple-shell .g-nav-group.has-active > .g-nav-group-head .g-nav-ico {
+  color: var(--text-primary);
+}
+
+.simple-shell .g-nav-group-head .nav-badge {
+  margin-left: 0;
+}
+
+.simple-shell .g-nav-caret {
+  margin-left: auto;
   width: 18px;
   height: 18px;
   display: grid;
   place-items: center;
-  border-radius: 5px;
+  color: var(--text-tertiary);
+  transform: rotate(-90deg);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.simple-shell .g-nav-group.open > .g-nav-group-head .g-nav-caret {
+  transform: rotate(0deg);
+}
+
+.simple-shell .g-nav-sub {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.simple-shell .g-nav-group.open > .g-nav-sub {
+  grid-template-rows: 1fr;
+}
+
+.simple-shell .g-nav-sub-inner {
+  overflow: hidden;
+  min-height: 0;
+  margin: 1px 0 6px 19px;
+  padding: 2px 0 2px 8px;
+  border-left: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.simple-shell .g-nav-item.sub {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.simple-shell .g-nav-item.sub.active,
+.simple-shell .g-nav-item.sub:hover {
+  color: var(--text-primary);
+}
+
+.simple-shell .g-nav-item.sub .g-nav-ico {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Workspace rows: one quiet line — avatar, name, count, caret. ──────── */
+
+.simple-shell .g-l2 {
+  gap: 8px;
+  height: 32px;
+  margin-top: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.simple-shell .ws-avatar {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--ws-accent, var(--text-tertiary)) 22%, transparent);
   color: var(--ws-accent, var(--text-secondary));
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -59,8 +172,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 600;
   letter-spacing: 0;
   color: var(--text-secondary);
   transition: color 120ms ease;
@@ -82,9 +195,9 @@
   align-items: center;
   gap: 8px;
   margin: 1px 0 2px;
-  padding: 0 8px 0 32px;
+  padding: 0 8px 0 34px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-tertiary);
   overflow: hidden;
   white-space: nowrap;
@@ -112,7 +225,7 @@
   background: color-mix(in srgb, var(--text-primary) 7%, transparent);
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
@@ -120,19 +233,23 @@
 /* ── Thread rows: assistant-ui thread-list specs. ──────────────────────── */
 
 .simple-shell .session-row {
-  height: 30px;
+  height: 32px;
   margin: 0 0 0 10px;
   width: calc(100% - 10px);
   padding: 0 8px 0 22px;
   border-radius: 10px;
   gap: 7px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .simple-shell .session-row .name,
 .simple-shell .session-row.active .name {
-  font-size: 12.5px;
-  font-weight: 400;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.simple-shell .session-row.active .name {
+  font-weight: 600;
 }
 
 .simple-shell .session-row.active {
@@ -157,9 +274,12 @@
   grid-area: 1 / 1;
 }
 
-.simple-shell .session-row .row-time {
-  display: flex;
-  opacity: 1;
+.simple-shell .session-row .row-time time {
+  font-size: 11.5px;
+}
+
+.simple-shell .g-empty {
+  font-size: 13px;
 }
 
 .simple-shell .session-row .row-actions {
@@ -188,31 +308,48 @@
   color: var(--text-tertiary);
 }
 
-/* Project row: count/caret by default, + / more on hover. */
+/* Project row: name left, caret flush right; hover swaps in + / more. */
 .simple-shell .ws-row {
   position: relative;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 2px;
   margin-top: 4px;
 }
 
 .simple-shell .ws-row .g-l2 {
   flex: 1;
   min-width: 0;
-  width: auto;
+  width: 100%;
   margin-top: 0;
-  padding-right: 52px;
+  padding-right: 56px;
 }
 
 .simple-shell .ws-meta {
-  display: none;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 50px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 120ms ease;
 }
 
-.simple-shell .ws-row .ws-count,
 .simple-shell .ws-row .ws-caret {
-  transition: opacity 120ms ease;
+  margin-left: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--text-secondary);
+}
+
+.simple-shell .ws-row:not(.open) .ws-caret {
+  transform: rotate(-90deg);
 }
 
 .simple-shell .ws-actions {
@@ -222,8 +359,9 @@
   transform: translateY(-50%);
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
-  flex-shrink: 0;
+  min-width: 50px;
   z-index: 2;
   opacity: 0;
   pointer-events: none;
@@ -236,10 +374,8 @@
   pointer-events: auto;
 }
 
-.simple-shell .ws-row:hover .ws-count,
-.simple-shell .ws-row:hover .ws-caret,
-.simple-shell .ws-row:focus-within .ws-count,
-.simple-shell .ws-row:focus-within .ws-caret {
+.simple-shell .ws-row:hover .ws-meta,
+.simple-shell .ws-row:focus-within .ws-meta {
   opacity: 0;
 }
 
@@ -260,30 +396,130 @@
   color: var(--text-primary);
 }
 
-.simple-shell .g-tree-search {
-  display: flex;
+.simple-shell .g-l1 {
+  display: grid;
+  grid-template-columns: 1fr 0fr auto;
   align-items: center;
-  gap: 6px;
+  column-gap: 2px;
   height: 28px;
-  margin: 2px 0 6px;
-  padding: 0 8px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
-  color: var(--text-secondary);
+  transition: grid-template-columns 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.simple-shell .g-tree-search input {
-  flex: 1;
+.simple-shell .g-l1.searching {
+  grid-template-columns: 0fr 1fr auto;
+}
+
+.simple-shell .g-l1-lead {
+  display: flex;
+  align-items: center;
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+
+.simple-shell .g-l1.searching .g-l1-lead {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.simple-shell .g-l1-head {
+  flex: 1 1 auto;
+}
+
+.simple-shell .g-l1-find {
+  display: flex;
+  align-items: center;
+  min-width: 26px;
+  width: 100%;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: transparent;
+  transition:
+    background 180ms ease,
+    padding 180ms ease;
+}
+
+.simple-shell .g-l1-find .g-l1-search {
+  flex-shrink: 0;
+}
+
+.simple-shell .g-l1.searching .g-l1-find {
+  padding-right: 2px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.simple-shell .g-l1.searching .g-l1-search,
+.simple-shell .g-l1.searching .g-l1-search.on {
+  background: transparent;
+}
+
+.simple-shell .g-l1-find-cancel {
+  flex-shrink: 0;
+  width: 0;
+  min-width: 0;
+  height: 22px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.86);
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease 40ms,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.simple-shell .g-l1.searching .g-l1-find-cancel {
+  width: 22px;
+  min-width: 22px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.simple-shell .g-l1-find-cancel:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.simple-shell .g-l1-find-input {
+  width: 0;
+  min-width: 0;
+  flex: 1 1 0;
   height: 100%;
+  opacity: 0;
   border: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   outline: none;
+  pointer-events: none;
+  transform: translateX(-6px);
+  transition:
+    opacity 160ms ease 40ms,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.simple-shell .g-tree-search input::placeholder {
+.simple-shell .g-l1.searching .g-l1-find-input {
+  width: 100%;
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.simple-shell .g-l1-find-input::placeholder {
   color: var(--text-tertiary);
 }
 
@@ -299,7 +535,8 @@
   background: transparent;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -339,7 +576,8 @@
 .simple-shell .g-day-head {
   padding: 8px 8px 3px 32px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-tertiary);
   user-select: none;
 }
@@ -372,8 +610,8 @@
 }
 
 .simple-shell .g-account-name {
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 650;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -381,11 +619,36 @@
 }
 
 .simple-shell .g-account-sub {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.simple-shell .g-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.simple-shell .chrome-btn,
+.simple-shell .g-brand-row .sidebar-collapse {
+  width: 30px;
+  height: 30px;
+}
+
+.simple-shell .g-l1-group {
+  height: 24px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.simple-shell .grok-sidebar.collapsed .g-nav-item,
+.simple-shell .grok-sidebar.collapsed .g-nav-item.primary {
+  width: 38px;
+  height: 38px;
 }
 
 /* Collapsed rail keeps the circular avatar centred. */

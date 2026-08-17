@@ -668,6 +668,7 @@ html.grok-ui body {
 .g-account-gear svg,
 .simple-shell .ws-actions svg,
 .simple-shell .g-l1-add svg,
+.simple-shell .g-l1-search svg,
 .simple-shell .g-tree-search svg,
 .simple-shell .session-row .row-actions svg {
   display: block;
@@ -827,10 +828,10 @@ html.grok-ui body {
   color: var(--text-primary);
 }
 
-.g-l1-add {
+.g-l1-add,
+.g-l1-search {
   width: 26px;
   height: 26px;
-  margin-right: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -844,7 +845,13 @@ html.grok-ui body {
     color 120ms ease;
 }
 
-.g-l1-add:hover {
+.g-l1-add {
+  margin-right: 4px;
+}
+
+.g-l1-add:hover,
+.g-l1-search:hover,
+.g-l1-search.on {
   background: var(--bg-hover);
   color: var(--text-primary);
 }

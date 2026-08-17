@@ -8,12 +8,12 @@ type IconProps = {
 const STROKE = {
   fill: "none",
   stroke: "currentColor",
-  strokeWidth: 2.4,
+  strokeWidth: 2.55,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 };
 
-function Frame({ size = 18, children, ...rest }: IconProps & { children: ReactNode }) {
+function Frame({ size = 20, children, ...rest }: IconProps & { children: ReactNode }) {
   return (
     <svg
       width={size}
@@ -136,11 +136,41 @@ export function SidebarIconSearch({ size = 18, ...rest }: IconProps) {
   );
 }
 
+export function SidebarIconClose({ size = 16, ...rest }: IconProps) {
+  return (
+    <Frame size={size} {...rest}>
+      <path d="M6.2 6.2 17.8 17.8M17.8 6.2 6.2 17.8" {...STROKE} />
+    </Frame>
+  );
+}
+
 export function SidebarIconPanel({ size = 18, ...rest }: IconProps) {
   return (
     <Frame size={size} {...rest}>
       <rect x="3.5" y="4.5" width="17" height="15" rx="2.6" {...STROKE} />
       <path d="M9.2 4.5v15" {...STROKE} />
+    </Frame>
+  );
+}
+
+/** Workbench group — 2×2 tiles. */
+export function SidebarIconGrid({ size = 18, ...rest }: IconProps) {
+  return (
+    <Frame size={size} {...rest}>
+      <rect x="4" y="4" width="6.6" height="6.6" rx="1.6" {...STROKE} />
+      <rect x="13.4" y="4" width="6.6" height="6.6" rx="1.6" {...STROKE} />
+      <rect x="4" y="13.4" width="6.6" height="6.6" rx="1.6" {...STROKE} />
+      <rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.6" {...STROKE} />
+    </Frame>
+  );
+}
+
+/** Extensions group — stacked boards. */
+export function SidebarIconBlocks({ size = 18, ...rest }: IconProps) {
+  return (
+    <Frame size={size} {...rest}>
+      <rect x="4.2" y="7.4" width="10.4" height="10.4" rx="2" {...STROKE} />
+      <path d="M9.4 4.4h8.2a2 2 0 0 1 2 2v8.2" {...STROKE} />
     </Frame>
   );
 }

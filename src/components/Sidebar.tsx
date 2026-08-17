@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type MouseEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useWorkbench, type GroupMode } from "../store/workbench";
 import { hostApi, type Run, type Session, type Workspace } from "../host/client";
@@ -10,10 +10,13 @@ import {
   SidebarIconActivity,
   SidebarIconApprovals,
   SidebarIconArtifacts,
+  SidebarIconBlocks,
   SidebarIconCaret,
+  SidebarIconClose,
   SidebarIconDesign,
   SidebarIconDots,
   SidebarIconGear,
+  SidebarIconGrid,
   SidebarIconHistory,
   SidebarIconMcp,
   SidebarIconPanel,
@@ -60,6 +63,97 @@ function accentFor(id: string): string {
   return WS_ACCENTS[hash % WS_ACCENTS.length];
 }
 
+type NavLeaf = {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  active: boolean;
+  dim?: boolean;
+  badge?: number;
+  quiet?: boolean;
+  onClick: () => void;
+};
+
+function NavButton({
+  item,
+  title,
+  sub,
+}: {
+  item: NavLeaf;
+  title?: string;
+  sub?: boolean;
+}) {
+  const aria = item.badge ? `${item.label} ${item.badge}` : item.label;
+  return (
+    <button
+      type="button"
+      className={`g-nav-item${sub ? " sub" : ""}${item.dim ? " dim" : ""}${item.active ? " active" : ""}`}
+      aria-label={aria}
+      title={title}
+      onClick={item.onClick}
+    >
+      <span className="g-nav-ico">{item.icon}</span>
+      <span className="nav-text">{item.label}</span>
+      {item.badge ? (
+        <span className={`nav-badge${item.quiet ? " quiet" : ""}`}>{item.badge}</span>
+      ) : null}
+    </button>
+  );
+}
+
+function NavGroup({
+  label,
+  icon,
+  open,
+  onToggle,
+  items,
+  rail,
+}: {
+  label: string;
+  icon: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  items: NavLeaf[];
+  rail: boolean;
+}) {
+  const hasActive = items.some((item) => item.active);
+  const collapsedBadge = !open
+    ? items.find((item) => item.badge && !item.quiet)?.badge ||
+      items.find((item) => item.badge)?.badge
+    : undefined;
+  const collapsedQuiet = !items.some((item) => item.badge && !item.quiet);
+  if (rail) {
+    return items.map((item) => <NavButton key={item.id} item={item} title={item.label} />);
+  }
+  return (
+    <div className={`g-nav-group${open ? " open" : ""}${hasActive ? " has-active" : ""}`}>
+      <button
+        type="button"
+        className="g-nav-item g-nav-group-head"
+        aria-expanded={open}
+        aria-label={`${label} · ${open ? "收起" : "展开"}`}
+        onClick={onToggle}
+      >
+        <span className="g-nav-ico">{icon}</span>
+        <span className="nav-text">{label}</span>
+        {collapsedBadge ? (
+          <span className={`nav-badge${collapsedQuiet ? " quiet" : ""}`}>{collapsedBadge}</span>
+        ) : null}
+        <span className="g-nav-caret" aria-hidden>
+          <SidebarIconCaret size={16} />
+        </span>
+      </button>
+      <div className="g-nav-sub">
+        <div className="g-nav-sub-inner">
+          {items.map((item) => (
+            <NavButton key={item.id} item={item} sub />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type SidebarMenu =
   | { kind: "session"; x: number; y: number; session: Session }
   | { kind: "project"; x: number; y: number; workspace: Workspace };
@@ -84,6 +178,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
       beginRenameSession: s.beginRenameSession,
       cycleGroupMode: s.cycleGroupMode,
       deleteSession: s.deleteSession,
+      deleteWorkspace: s.deleteWorkspace,
       forkSession: s.forkSession,
       archiveSession: s.archiveSession,
       unarchiveSession: s.unarchiveSession,
@@ -128,8 +223,11 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   const [menu, setMenu] = useState<SidebarMenu | null>(null);
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [askConfirm, confirmLayer] = useConfirm();
   const [archivedOpen, setArchivedOpen] = useState<Record<string, boolean>>({});
+  const [navOpen, setNavOpen] = useState({ work: true, extra: false });
   const accountName = state.workspace?.name || "本地";
   const sortSessions = (list: Session[]): Session[] => {
     const copy = [...list];
@@ -146,6 +244,100 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
   };
 
   const isMac = state.platform.windowControl === "macos";
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  const closeSessionSearch = () => {
+    setSearchOpen(false);
+    setQuery("");
+  };
+
+  const workActive =
+    state.appSurface === "design" ||
+    state.centerView === "history" ||
+    state.centerView === "activity" ||
+    state.centerView === "approvals";
+  const extraActive =
+    state.appSurface !== "design" &&
+    (state.centerView === "usage" ||
+      state.centerView === "skills" ||
+      state.centerView === "mcp" ||
+      state.centerView === "artifacts");
+
+  useEffect(() => {
+    if (workActive) setNavOpen((value) => (value.work ? value : { ...value, work: true }));
+    if (extraActive) setNavOpen((value) => (value.extra ? value : { ...value, extra: true }));
+  }, [workActive, extraActive]);
+
+  const workItems: NavLeaf[] = [
+    {
+      id: "design",
+      label: "设计",
+      icon: <SidebarIconDesign size={20} />,
+      active: state.appSurface === "design",
+      onClick: () => state.setAppSurface("design"),
+    },
+    {
+      id: "history",
+      label: "历史",
+      icon: <SidebarIconHistory size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "history",
+      onClick: () => state.setCenterView("history"),
+    },
+    {
+      id: "activity",
+      label: "活动",
+      icon: <SidebarIconActivity size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "activity",
+      badge: state.queue.length || undefined,
+      quiet: true,
+      onClick: () => state.setCenterView("activity"),
+    },
+    {
+      id: "approvals",
+      label: "审批",
+      icon: <SidebarIconApprovals size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "approvals",
+      badge: pendingApprovals || undefined,
+      onClick: () => state.setCenterView("approvals"),
+    },
+  ];
+  const extraItems: NavLeaf[] = [
+    {
+      id: "usage",
+      label: "用量",
+      icon: <SidebarIconUsage size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "usage",
+      dim: true,
+      onClick: () => state.setCenterView("usage"),
+    },
+    {
+      id: "skills",
+      label: "技能",
+      icon: <SidebarIconSkills size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "skills",
+      dim: true,
+      onClick: () => state.setCenterView("skills"),
+    },
+    {
+      id: "mcp",
+      label: "MCP",
+      icon: <SidebarIconMcp size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "mcp",
+      dim: true,
+      onClick: () => state.setCenterView("mcp"),
+    },
+    {
+      id: "artifacts",
+      label: "产物",
+      icon: <SidebarIconArtifacts size={20} />,
+      active: state.appSurface !== "design" && state.centerView === "artifacts",
+      dim: true,
+      onClick: () => state.setCenterView("artifacts"),
+    },
+  ];
 
   return (
     <aside className={`left grok-sidebar ${rail ? "collapsed" : ""}`}>
@@ -167,12 +359,12 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             aria-expanded={!rail}
             onClick={state.toggleLeft}
           >
-            <SidebarIconPanel size={18} />
+            <SidebarIconPanel size={20} />
           </button>
         )}
         {!rail && (
           <div className="g-brand">
-            <GrokStyleMark size={17} />
+            <GrokStyleMark size={18} />
             <span>HerDock</span>
           </div>
         )}
@@ -185,7 +377,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             title={`搜索 · ${state.platform.commandHint}`}
             onClick={state.togglePalette}
           >
-            <SidebarIconSearch size={18} />
+            <SidebarIconSearch size={20} />
           </button>
         )}
         {isMac && (
@@ -197,7 +389,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             aria-expanded={!rail}
             onClick={state.toggleLeft}
           >
-            <SidebarIconPanel size={18} />
+            <SidebarIconPanel size={20} />
           </button>
         )}
       </div>
@@ -211,109 +403,26 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
           onClick={() => void state.newSession()}
         >
           <span className="g-nav-ico">
-            <SidebarIconPlus size={18} />
+            <SidebarIconPlus size={20} />
           </span>
           <span className="nav-text">新建会话</span>
         </button>
-        <button
-          type="button"
-          className={`g-nav-item ${state.appSurface === "design" ? "active" : ""}`}
-          aria-label="设计"
-          title={rail ? "设计" : undefined}
-          onClick={() => state.setAppSurface("design")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconDesign size={18} />
-          </span>
-          <span className="nav-text">设计</span>
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item ${state.centerView === "history" ? "active" : ""}`}
-          aria-label="历史"
-          title={rail ? "历史" : undefined}
-          onClick={() => state.setCenterView("history")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconHistory size={18} />
-          </span>
-          <span className="nav-text">历史</span>
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item ${state.centerView === "activity" ? "active" : ""}`}
-          aria-label={state.queue.length > 0 ? `活动 ${state.queue.length}` : "活动"}
-          title={rail ? "活动" : undefined}
-          onClick={() => state.setCenterView("activity")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconActivity size={18} />
-          </span>
-          <span className="nav-text">活动</span>
-          {state.queue.length > 0 && <span className="nav-badge quiet">{state.queue.length}</span>}
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item ${state.centerView === "approvals" ? "active" : ""}`}
-          aria-label={pendingApprovals > 0 ? `审批 ${pendingApprovals}` : "审批"}
-          title={rail ? "审批" : undefined}
-          onClick={() => state.setCenterView("approvals")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconApprovals size={18} />
-          </span>
-          <span className="nav-text">审批</span>
-          {pendingApprovals > 0 && <span className="nav-badge">{pendingApprovals}</span>}
-        </button>
-        <div className="g-nav-gap" />
-        <button
-          type="button"
-          className={`g-nav-item dim ${state.centerView === "usage" ? "active" : ""}`}
-          aria-label="用量"
-          title={rail ? "用量" : undefined}
-          onClick={() => state.setCenterView("usage")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconUsage size={18} />
-          </span>
-          <span className="nav-text">用量</span>
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item dim ${state.centerView === "skills" ? "active" : ""}`}
-          aria-label="技能"
-          title={rail ? "技能" : undefined}
-          onClick={() => state.setCenterView("skills")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconSkills size={18} />
-          </span>
-          <span className="nav-text">技能</span>
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item dim ${state.centerView === "mcp" ? "active" : ""}`}
-          aria-label="MCP"
-          title={rail ? "MCP" : undefined}
-          onClick={() => state.setCenterView("mcp")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconMcp size={18} />
-          </span>
-          <span className="nav-text">MCP</span>
-        </button>
-        <button
-          type="button"
-          className={`g-nav-item dim ${state.centerView === "artifacts" ? "active" : ""}`}
-          aria-label="产物"
-          title={rail ? "产物" : undefined}
-          onClick={() => state.setCenterView("artifacts")}
-        >
-          <span className="g-nav-ico">
-            <SidebarIconArtifacts size={18} />
-          </span>
-          <span className="nav-text">产物</span>
-        </button>
+        <NavGroup
+          label="工作台"
+          icon={<SidebarIconGrid size={20} />}
+          open={navOpen.work}
+          onToggle={() => setNavOpen((value) => ({ ...value, work: !value.work }))}
+          items={workItems}
+          rail={rail}
+        />
+        <NavGroup
+          label="扩展"
+          icon={<SidebarIconBlocks size={20} />}
+          open={navOpen.extra}
+          onToggle={() => setNavOpen((value) => ({ ...value, extra: !value.extra }))}
+          items={extraItems}
+          rail={rail}
+        />
         {rail && (
           <button
             type="button"
@@ -323,7 +432,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             onClick={state.togglePalette}
           >
             <span className="g-nav-ico">
-              <SidebarIconSearch size={18} />
+              <SidebarIconSearch size={20} />
             </span>
           </button>
         )}
@@ -342,23 +451,67 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
             event.preventDefault();
           }}
         >
-          <div className="g-l1">
-            <button
-              type="button"
-              className="g-l1-head"
-              onClick={() => setProjectsOpen((v) => !v)}
-              title={`项目 · ${projectsOpen ? "收起" : "展开"}`}
-            >
-              <span>项目</span>
-            </button>
-            <button
-              type="button"
-              className="g-l1-group"
-              title={`会话分组方式，点击切换（当前：${GROUP_LABEL[state.groupMode]}）`}
-              onClick={state.cycleGroupMode}
-            >
-              {GROUP_LABEL[state.groupMode]}
-            </button>
+          <div className={`g-l1 ${searchOpen ? "searching" : ""}`}>
+            <div className="g-l1-lead">
+              <button
+                type="button"
+                className="g-l1-head"
+                onClick={() => setProjectsOpen((v) => !v)}
+                title={`项目 · ${projectsOpen ? "收起" : "展开"}`}
+                tabIndex={searchOpen ? -1 : 0}
+              >
+                <span>项目</span>
+              </button>
+              <button
+                type="button"
+                className="g-l1-group"
+                title={`会话分组方式，点击切换（当前：${GROUP_LABEL[state.groupMode]}）`}
+                onClick={state.cycleGroupMode}
+                tabIndex={searchOpen ? -1 : 0}
+              >
+                {GROUP_LABEL[state.groupMode]}
+              </button>
+            </div>
+            <div className="g-l1-find">
+              <button
+                type="button"
+                className={`g-l1-search ${searchOpen ? "on" : ""}`}
+                title="搜索会话"
+                aria-label="搜索会话"
+                aria-expanded={searchOpen}
+                onClick={() => {
+                  if (searchOpen) searchInputRef.current?.focus();
+                  else setSearchOpen(true);
+                }}
+              >
+                <SidebarIconSearch size={16} />
+              </button>
+              <input
+                ref={searchInputRef}
+                className="g-l1-find-input"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeSessionSearch();
+                  }
+                }}
+                placeholder="搜索会话"
+                aria-label="搜索会话"
+                tabIndex={searchOpen ? 0 : -1}
+              />
+              <button
+                type="button"
+                className="g-l1-find-cancel"
+                title="取消搜索"
+                aria-label="取消搜索"
+                tabIndex={searchOpen ? 0 : -1}
+                onClick={closeSessionSearch}
+              >
+                <SidebarIconClose size={14} />
+              </button>
+            </div>
             <button
               type="button"
               className="g-l1-add"
@@ -366,20 +519,9 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
               aria-label="打开文件夹，添加项目"
               onClick={onOpenWorkspace}
             >
-              <SidebarIconPlusBare size={15} />
+              <SidebarIconPlusBare size={16} />
             </button>
           </div>
-          {projectsOpen && (
-            <label className="g-tree-search">
-              <SidebarIconSearch size={14} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索会话"
-                aria-label="搜索会话"
-              />
-            </label>
-          )}
           {projectsOpen &&
             workspaces.map((w) => {
               const collapsed = !!state.collapsedWorkspaces[w.id];
@@ -460,7 +602,10 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
                   key={w.id}
                   style={{ ["--ws-accent" as string]: accentFor(w.id) }}
                 >
-                  <div className="ws-row" onContextMenu={openProjectMenu}>
+                  <div
+                    className={`ws-row ${collapsed ? "" : "open"}`}
+                    onContextMenu={openProjectMenu}
+                  >
                     <button
                       type="button"
                       className={`g-l2 ${collapsed ? "" : "open"}`}
@@ -474,13 +619,15 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
                       <span className="ws-text">
                         <span className="ws-name">{w.name}</span>
                       </span>
+                    </button>
+                    <span className="ws-meta" aria-hidden>
                       {activeSessions.length > 1 && (
                         <span className="ws-count">{activeSessions.length}</span>
                       )}
-                      <span className="ws-caret" aria-hidden>
-                        <SidebarIconCaret size={12} />
+                      <span className="ws-caret">
+                        <SidebarIconCaret size={15} />
                       </span>
-                    </button>
+                    </span>
                     <span className="ws-actions">
                       <button
                         type="button"
@@ -492,7 +639,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
                           void state.newSession(w.id);
                         }}
                       >
-                        <SidebarIconPlusBare size={14} />
+                        <SidebarIconPlusBare size={15} />
                       </button>
                       <button
                         type="button"
@@ -577,7 +724,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
         )}
         {!rail && (
           <span className="g-account-gear" aria-hidden>
-            <SidebarIconGear size={16} />
+            <SidebarIconGear size={18} />
           </span>
         )}
       </button>
@@ -598,7 +745,7 @@ function GrokSidebar({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
           items={
             menu.kind === "session"
               ? sessionMenu(menu.session, state, askConfirm)
-              : projectMenu(menu.workspace, state, onOpenWorkspace)
+              : projectMenu(menu.workspace, state, onOpenWorkspace, askConfirm)
           }
         />
       )}
@@ -683,8 +830,15 @@ function projectMenu(
   state: {
     newSession: (workspaceId?: string) => Promise<void>;
     openWorkspacePath: (path: string) => Promise<void>;
+    deleteWorkspace: (id: string) => Promise<void>;
   },
   onOpenWorkspace: () => void,
+  askConfirm: (options: {
+    title: string;
+    body: string;
+    confirmLabel: string;
+    danger: boolean;
+  }) => Promise<boolean>,
 ): ContextMenuItem[] {
   return [
     {
@@ -722,6 +876,23 @@ function projectMenu(
       id: "add-folder",
       label: "打开其他文件夹…",
       onSelect: onOpenWorkspace,
+    },
+    { id: "sep-delete", type: "separator" },
+    {
+      id: "delete",
+      label: "删除项目",
+      danger: true,
+      icon: <SidebarIconTrash size={15} />,
+      onSelect: () => {
+        void askConfirm({
+          title: "删除项目？",
+          body: `从工作台移除「${workspace.name}」？磁盘上的文件夹不会删除，该项目下的会话和运行记录会一并去掉。`,
+          confirmLabel: "删除",
+          danger: true,
+        }).then((ok) => {
+          if (ok) void state.deleteWorkspace(workspace.id);
+        });
+      },
     },
   ];
 }
