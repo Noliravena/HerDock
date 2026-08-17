@@ -32,6 +32,7 @@ export interface SessionRecord {
   providerId: ProviderId;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string;
   /** Provider-native conversation id when known. */
   providerSessionId?: string;
 }

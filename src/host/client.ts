@@ -8,8 +8,32 @@ export type Workspace = {
   rootPath: string;
   branch?: string;
   dirtySummary?: string;
+  autoExecute?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+export type GitWorktree = {
+  path: string;
+  branch?: string;
+  head?: string;
+  bare: boolean;
+  detached: boolean;
+  locked: boolean;
+  prunable: boolean;
+  isMain: boolean;
+  isCurrent: boolean;
+};
+export type WorktreeList = {
+  available: boolean;
+  items: GitWorktree[];
+};
+export type FilePreview = {
+  path: string;
+  kind: string;
+  mime: string;
+  bytesBase64?: string | null;
+  text?: string | null;
+  tooLarge: boolean;
 };
 export type Session = {
   id: string;
@@ -19,6 +43,7 @@ export type Session = {
   providerId: string;
   createdAt?: string;
   updatedAt?: string;
+  archivedAt?: string | null;
 };
 export type Run = {
   id: string;
@@ -244,6 +269,28 @@ export type AppSettings = {
   closeToTray: boolean;
   launchShortcut: string;
   updateChannel: string;
+  httpProxy: string;
+  setupComplete: boolean;
+};
+export type DoctorStatus = "ok" | "warn" | "fail";
+export type DoctorCheck = {
+  id: string;
+  title: string;
+  status: DoctorStatus;
+  detail: string;
+  runId?: string;
+};
+export type ProbeResult = {
+  url: string;
+  status: DoctorStatus;
+  detail: string;
+  statusCode?: number;
+  elapsedMs: number;
+};
+export type DoctorReport = {
+  generatedAt: string;
+  checks: DoctorCheck[];
+  probes: ProbeResult[];
 };
 export type ContextItem = {
   id: string;
@@ -367,6 +414,9 @@ export const hostApi = {
   platform: () => call<PlatformInfo>("app_platform"),
   settings: () => call<AppSettings>("settings_get"),
   saveSettings: (settings: AppSettings) => call<AppSettings>("settings_save", { settings }),
+  doctor: () => call<DoctorReport>("doctor_run"),
+  probeNetwork: (urls?: string[]) => call<ProbeResult[]>("network_probe", { urls }),
+  exportDoctor: (destPath?: string) => call<string>("doctor_export", destPath ? { destPath } : {}),
   providers: () => call<ProviderHealth[]>("provider_list"),
   providerProfiles: () => call<ProviderProfile[]>("provider_profiles"),
   saveProvider: (request: SaveProviderRequest) =>
@@ -406,9 +456,20 @@ export const hostApi = {
   contextItems: (workspaceId: string) => call<ContextItem[]>("context_list", { workspaceId }),
   importContext: (workspaceId: string, paths: string[]) =>
     call<ContextItem[]>("context_import", { request: { workspaceId, paths } }),
+  importContextBytes: (
+    workspaceId: string,
+    fileName: string,
+    mimeType: string,
+    bytesBase64: string,
+  ) =>
+    call<ContextItem[]>("context_import_bytes", {
+      request: { workspaceId, fileName, mimeType, bytesBase64 },
+    }),
   removeContext: (contextId: string) => call<void>("context_remove", { contextId }),
   listWorkspaces: () => call<Workspace[]>("workspace_list"),
   openWorkspace: (path: string) => call<Workspace>("workspace_open", { path }),
+  setWorkspaceAutoExecute: (workspaceId: string, autoExecute?: string | null) =>
+    call<Workspace>("workspace_set_auto_execute", { workspaceId, autoExecute }),
   tree: (workspaceId: string, depth = 5) =>
     call<FsNode[]>("workspace_tree", { workspaceId, depth }),
   readFile: (workspaceId: string, path: string) =>
@@ -416,6 +477,14 @@ export const hostApi = {
       workspaceId,
       path,
     }),
+  previewFile: (workspaceId: string, path: string) =>
+    call<FilePreview>("file_preview", { workspaceId, path }),
+  listWorktrees: (workspaceId: string) => call<WorktreeList>("git_worktree_list", { workspaceId }),
+  addWorktree: (workspaceId: string, name: string, startPoint?: string) =>
+    call<GitWorktree>("git_worktree_add", { workspaceId, name, startPoint }),
+  removeWorktree: (workspaceId: string, path: string, force = false) =>
+    call<void>("git_worktree_remove", { workspaceId, path, force }),
+  pruneWorktrees: (workspaceId: string) => call<string>("git_worktree_prune", { workspaceId }),
   writeFile: (workspaceId: string, path: string, content: string) =>
     call<void>("file_write", { workspaceId, path, content }),
   createFile: (workspaceId: string, path: string, kind: "file" | "dir") =>
@@ -424,6 +493,9 @@ export const hostApi = {
     call<void>("file_rename", { workspaceId, from, to }),
   deleteFile: (workspaceId: string, path: string) =>
     call<void>("file_delete", { workspaceId, path }),
+  revealFile: (workspaceId: string, path: string) =>
+    call<void>("file_reveal", { workspaceId, path }),
+  revealWorkspace: (workspaceId: string) => call<void>("workspace_reveal", { workspaceId }),
   searchFiles: (workspaceId: string, query: string) =>
     call<SearchResult[]>("file_search", { workspaceId, query }),
   fileDiff: (workspaceId: string, path?: string) => call<string>("git_diff", { workspaceId, path }),
@@ -438,6 +510,11 @@ export const hostApi = {
       kind: body.kind ?? "mixed",
       providerId: body.providerId ?? "codex",
     }),
+  renameSession: (id: string, title: string) => call<Session>("session_rename", { id, title }),
+  forkSession: (id: string, beforeSeq?: number) => call<Session>("session_fork", { id, beforeSeq }),
+  deleteSession: (id: string) => call<void>("session_delete", { id }),
+  archiveSession: (id: string) => call<Session>("session_archive", { id }),
+  unarchiveSession: (id: string) => call<Session>("session_unarchive", { id }),
   listArtifacts: (workspaceId: string) => call<Artifact[]>("artifact_list", { workspaceId }),
   artifactPreview: (workspaceId: string, path: string) =>
     call<ArtifactPreview>("artifact_preview", { workspaceId, path }),
