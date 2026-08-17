@@ -468,6 +468,7 @@ export const hostApi = {
   removeContext: (contextId: string) => call<void>("context_remove", { contextId }),
   listWorkspaces: () => call<Workspace[]>("workspace_list"),
   openWorkspace: (path: string) => call<Workspace>("workspace_open", { path }),
+  deleteWorkspace: (id: string) => call<void>("workspace_delete", { id }),
   setWorkspaceAutoExecute: (workspaceId: string, autoExecute?: string | null) =>
     call<Workspace>("workspace_set_auto_execute", { workspaceId, autoExecute }),
   tree: (workspaceId: string, depth = 5) =>

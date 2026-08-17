@@ -628,6 +628,8 @@ export function installDesignPreview() {
           return [workspace];
         case "workspace_open":
           return workspace;
+        case "workspace_delete":
+          return null;
         case "workspace_set_auto_execute":
           workspace.autoExecute = (args.autoExecute as string | null | undefined) ?? null;
           return { ...workspace };

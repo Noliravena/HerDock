@@ -180,6 +180,19 @@ impl Database {
         Ok(changed > 0)
     }
 
+    pub fn delete_workspace(&self, id: &str) -> Result<bool> {
+        // Drop sessions (and their runs) first so run_context_items are gone
+        // before context_items, which are RESTRICT-bound to those rows.
+        self.conn
+            .execute("DELETE FROM sessions WHERE workspace_id=?1", [id])?;
+        self.conn
+            .execute("DELETE FROM context_items WHERE workspace_id=?1", [id])?;
+        let changed = self
+            .conn
+            .execute("DELETE FROM workspaces WHERE id=?1", [id])?;
+        Ok(changed > 0)
+    }
+
     pub fn set_session_archived(&self, id: &str, archived: bool) -> Result<Option<Session>> {
         let stamp = now();
         let changed = if archived {
@@ -1564,6 +1577,86 @@ mod tests {
         assert!(db.session("sess_one").unwrap().is_none());
         assert!(db.list_runs("sess_one").unwrap().is_empty());
         assert!(!db.delete_session("sess_one").unwrap());
+    }
+
+    #[test]
+    fn delete_workspace_drops_sessions_and_bound_context() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = Database::open(&dir.path().join("ws_del.db")).unwrap();
+        let stamp = "2026-08-18T00:00:00Z".to_string();
+        db.upsert_workspace(&Workspace {
+            id: "ws_keep".into(),
+            name: "Keep".into(),
+            root_path: dir.path().join("keep").to_string_lossy().into_owned(),
+            branch: None,
+            dirty_summary: None,
+            auto_execute: None,
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        db.upsert_workspace(&Workspace {
+            id: "ws_del".into(),
+            name: "Remove".into(),
+            root_path: dir.path().join("remove").to_string_lossy().into_owned(),
+            branch: None,
+            dirty_summary: None,
+            auto_execute: None,
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        db.insert_session(&Session {
+            id: "sess_del".into(),
+            workspace_id: "ws_del".into(),
+            title: "要删的会话".into(),
+            kind: "mixed".into(),
+            provider_id: "codex".into(),
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+            archived_at: None,
+        })
+        .unwrap();
+        db.insert_run(&Run {
+            id: "run_del".into(),
+            session_id: "sess_del".into(),
+            workspace_id: "ws_del".into(),
+            provider_id: "codex".into(),
+            model: None,
+            status: "completed".into(),
+            prompt: "hello".into(),
+            plan_progress: None,
+            error_message: None,
+            token_usage: json!({}),
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+            started_at: None,
+            finished_at: None,
+        })
+        .unwrap();
+        db.upsert_context_item(&ContextItem {
+            id: "ctx_del".into(),
+            workspace_id: Some("ws_del".into()),
+            source_kind: "workspace".into(),
+            display_name: "README.md".into(),
+            relative_path: Some("README.md".into()),
+            stored_path: None,
+            mime_type: "text/plain".into(),
+            size_bytes: 12,
+            sha256: "abc".into(),
+            created_at: stamp.clone(),
+        })
+        .unwrap();
+        db.bind_run_inputs("run_del", &["ctx_del".into()], &[], &[])
+            .unwrap();
+
+        assert!(db.delete_workspace("ws_del").unwrap());
+        assert!(db.workspace("ws_del").unwrap().is_none());
+        assert!(db.session("sess_del").unwrap().is_none());
+        assert!(db.list_runs("sess_del").unwrap().is_empty());
+        assert!(db.list_context_items("ws_del").unwrap().is_empty());
+        assert!(db.workspace("ws_keep").unwrap().is_some());
+        assert!(!db.delete_workspace("ws_del").unwrap());
     }
 
     #[test]

@@ -83,7 +83,7 @@ pub async fn session_fork(
         .map_err(err)
 }
 
-const LIVE_STATUSES: &[&str] = &[
+pub(crate) const LIVE_STATUSES: &[&str] = &[
     "queued",
     "starting",
     "running",
@@ -149,7 +149,7 @@ async fn set_session_archived(
         .ok_or_else(|| "session not found".into())
 }
 
-async fn cancel_run_inner(run_id: &str, state: &State<'_, AppState>) -> CommandResult<()> {
+pub(crate) async fn cancel_run_inner(run_id: &str, state: &State<'_, AppState>) -> CommandResult<()> {
     let token = state.runs.lock().await.get(run_id).cloned();
     if let Some(token) = token.as_ref() {
         if let Some(run) = state.db.lock().await.run(run_id).map_err(err)? {

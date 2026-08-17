@@ -316,6 +316,7 @@ type State = {
 
   init: () => Promise<void>;
   openWorkspacePath: (path: string) => Promise<void>;
+  deleteWorkspace: (id: string) => Promise<void>;
   refreshTree: () => Promise<void>;
   refreshPanels: () => Promise<void>;
   refreshSkills: () => Promise<void>;
@@ -1071,6 +1072,84 @@ export const useWorkbench = create<State>((set, get) => ({
           ? "这个最近工作区已不存在，请点击“打开文件夹”重新选择。"
           : message,
       });
+    }
+  },
+
+  async deleteWorkspace(id) {
+    const current = get();
+    const removing = current.workspaces.find((item) => item.id === id);
+    if (!removing) return;
+    const sessionIds = new Set(
+      (current.workspaceSessions[id] || current.sessions.filter((item) => item.workspaceId === id)).map(
+        (item) => item.id,
+      ),
+    );
+    try {
+      await hostApi.deleteWorkspace(id);
+      const remaining = current.workspaces.filter((item) => item.id !== id);
+      const wasCurrent = current.workspace?.id === id;
+      set((state) => {
+        const sessionSnapshots = { ...state.sessionSnapshots };
+        for (const sid of sessionIds) delete sessionSnapshots[sid];
+        const { [id]: _droppedSessions, ...workspaceSessions } = state.workspaceSessions;
+        const { [id]: _droppedCollapsed, ...collapsedWorkspaces } = state.collapsedWorkspaces;
+        const mcpServers = state.mcpServers.filter((item) => item.workspaceId !== id);
+        return {
+          workspaces: remaining,
+          workspaceSessions,
+          collapsedWorkspaces,
+          sessions: wasCurrent
+            ? []
+            : state.sessions.filter((item) => item.workspaceId !== id),
+          allRuns: state.allRuns.filter((item) => item.workspaceId !== id),
+          sessionSnapshots,
+          renamingSessionId: sessionIds.has(state.renamingSessionId || "")
+            ? null
+            : state.renamingSessionId,
+          schedules: state.schedules.filter((item) => item.workspaceId !== id),
+          queue: state.queue.filter((item) => item.workspaceId !== id),
+          mcpServers,
+          connectors: connectorsFor(mcpServers),
+        };
+      });
+      if (!wasCurrent) return;
+      if (remaining[0]) {
+        await get().openWorkspacePath(remaining[0].rootPath);
+        return;
+      }
+      for (const browserId of get()
+        .tabs.map((tab) => tab.browserId)
+        .filter(Boolean) as string[]) {
+        void hostApi.closeBrowser(browserId);
+      }
+      set({
+        workspace: null,
+        session: null,
+        run: null,
+        runs: [],
+        events: [],
+        hasEarlierEvents: false,
+        historyWindowExpanded: false,
+        loadingEarlierEvents: false,
+        checkpoints: [],
+        checkpointPreview: null,
+        tree: [],
+        contextItems: [],
+        selectedContextIds: [],
+        artifacts: [],
+        sendQueue: [],
+        runLaunching: false,
+        tabs: BASE_TABS,
+        activeTab: "chat",
+        centerView: "chat",
+        activeDesignArtifactId: null,
+        designDraft: EMPTY_DESIGN_DRAFT,
+        statusLine: "未打开项目",
+        error: null,
+      });
+      await get().refreshPanels();
+    } catch (error) {
+      set({ error: String(error) });
     }
   },
 

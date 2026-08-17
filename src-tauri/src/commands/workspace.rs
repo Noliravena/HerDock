@@ -14,6 +14,8 @@ use crate::{
     services::{checkpoints, context, preview, state::AppState, workspace, worktree},
 };
 
+use super::runs::{cancel_run_inner, LIVE_STATUSES};
+
 #[tauri::command]
 pub async fn workspace_list(state: State<'_, AppState>) -> CommandResult<Vec<Workspace>> {
     state.db.lock().await.list_workspaces().map_err(err)
@@ -52,6 +54,28 @@ pub async fn workspace_open(path: String, state: State<'_, AppState>) -> Command
         .workspace(&workspace.id)
         .map_err(err)?
         .unwrap_or(workspace))
+}
+
+#[tauri::command]
+pub async fn workspace_delete(id: String, state: State<'_, AppState>) -> CommandResult<()> {
+    let id = id.trim().to_string();
+    if id.is_empty() {
+        return Err("workspace id required".into());
+    }
+    let sessions = state.db.lock().await.list_sessions(&id).map_err(err)?;
+    for session in sessions {
+        let runs = state.db.lock().await.list_runs(&session.id).map_err(err)?;
+        for run in runs {
+            if LIVE_STATUSES.contains(&run.status.as_str()) {
+                let _ = cancel_run_inner(&run.id, &state).await;
+            }
+        }
+    }
+    let deleted = state.db.lock().await.delete_workspace(&id).map_err(err)?;
+    if !deleted {
+        return Err("workspace not found".into());
+    }
+    Ok(())
 }
 
 #[tauri::command]
