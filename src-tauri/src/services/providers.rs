@@ -3,10 +3,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use reqwest::{
-    header::{HeaderMap, HeaderValue, CONTENT_TYPE, RETRY_AFTER},
-    Client,
-};
+use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, RETRY_AFTER};
 use serde_json::{json, Value};
 use thiserror::Error;
 use tokio::{process::Command, sync::mpsc};
@@ -608,10 +605,10 @@ async fn complete_openai(
     deltas: Option<mpsc::UnboundedSender<String>>,
     allow_retry: bool,
 ) -> Result<ProviderTurn> {
-    let client = Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .timeout(std::time::Duration::from_secs(180))
-        .build()?;
+    let client = crate::services::http::build_client(
+        std::time::Duration::from_secs(15),
+        std::time::Duration::from_secs(180),
+    )?;
     let base = if profile.provider_type == "openai_compatible" {
         profile
             .base_url
@@ -746,10 +743,10 @@ async fn complete_anthropic(
     deltas: Option<mpsc::UnboundedSender<String>>,
     allow_retry: bool,
 ) -> Result<ProviderTurn> {
-    let client = Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .timeout(std::time::Duration::from_secs(180))
-        .build()?;
+    let client = crate::services::http::build_client(
+        std::time::Duration::from_secs(15),
+        std::time::Duration::from_secs(180),
+    )?;
     let base = profile
         .base_url
         .as_deref()
@@ -1271,7 +1268,7 @@ mod tests {
             let (_stream, _) = listener.accept().unwrap();
             thread::sleep(Duration::from_millis(250));
         });
-        let client = Client::builder()
+        let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(40))
             .build()
             .unwrap();

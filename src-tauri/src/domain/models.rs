@@ -25,6 +25,8 @@ pub struct Workspace {
     pub root_path: String,
     pub branch: Option<String>,
     pub dirty_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_execute: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -39,6 +41,8 @@ pub struct Session {
     pub provider_id: String,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,6 +267,38 @@ pub struct FileRead {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FilePreview {
+    pub path: String,
+    pub kind: String,
+    pub mime: String,
+    pub bytes_base64: Option<String>,
+    pub text: Option<String>,
+    pub too_large: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktree {
+    pub path: String,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub bare: bool,
+    pub detached: bool,
+    pub locked: bool,
+    pub prunable: bool,
+    pub is_main: bool,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorktreeList {
+    pub available: bool,
+    pub items: Vec<GitWorktree>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub path: String,
     pub line: usize,
@@ -466,6 +502,10 @@ pub struct ContextFile {
     pub size: String,
 }
 
+fn existing_install_setup_complete() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -476,6 +516,12 @@ pub struct AppSettings {
     pub close_to_tray: bool,
     pub launch_shortcut: String,
     pub update_channel: String,
+    #[serde(default)]
+    pub http_proxy: String,
+    /// Missing on existing JSON: treat the install as already set up.
+    /// `Default` (no settings row) stays `false` so first-run can run.
+    #[serde(default = "existing_install_setup_complete")]
+    pub setup_complete: bool,
 }
 
 impl Default for AppSettings {
@@ -488,7 +534,35 @@ impl Default for AppSettings {
             close_to_tray: true,
             launch_shortcut: "CommandOrControl+Shift+Space".into(),
             update_channel: "stable".into(),
+            http_proxy: String::new(),
+            setup_complete: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::AppSettings;
+
+    #[test]
+    fn existing_json_without_setup_flag_skips_wizard() {
+        let json = r#"{
+            "defaultProvider":"codex",
+            "defaultModel":"",
+            "autoExecute":"ask_risky",
+            "terminalShell":"",
+            "closeToTray":true,
+            "launchShortcut":"CommandOrControl+Shift+Space",
+            "updateChannel":"stable"
+        }"#;
+        let settings: AppSettings = serde_json::from_str(json).unwrap();
+        assert!(settings.setup_complete);
+        assert!(settings.http_proxy.is_empty());
+    }
+
+    #[test]
+    fn missing_settings_row_needs_wizard() {
+        assert!(!AppSettings::default().setup_complete);
     }
 }
 
@@ -516,6 +590,15 @@ pub struct StartRunRequest {
 pub struct ContextImportRequest {
     pub workspace_id: String,
     pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextImportBytesRequest {
+    pub workspace_id: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub bytes_base64: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

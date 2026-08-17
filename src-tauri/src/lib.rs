@@ -42,6 +42,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let database = Database::open(&data_dir.join("herdock-v1.db"))?;
             database.seed_providers()?;
+            services::http::set_configured_proxy(database.settings()?.http_proxy);
             for mut server in database.list_mcp()? {
                 match mcp::migrate_legacy_env(&mut server) {
                     Ok(true) => database.upsert_mcp(&server)?,
@@ -115,21 +116,33 @@ pub fn run() {
             app::app_platform,
             app::settings_get,
             app::settings_save,
+            app::doctor_run,
+            app::network_probe,
+            app::doctor_export,
             app::app_show,
             app::app_quit,
             workspace::workspace_list,
             workspace::workspace_open,
+            workspace::workspace_set_auto_execute,
             workspace::workspace_tree,
             workspace::file_read,
+            workspace::file_preview,
             workspace::file_write,
             workspace::file_create,
             workspace::file_rename,
             workspace::file_delete,
+            workspace::file_reveal,
+            workspace::workspace_reveal,
             workspace::file_search,
             workspace::git_diff,
+            workspace::git_worktree_list,
+            workspace::git_worktree_add,
+            workspace::git_worktree_remove,
+            workspace::git_worktree_prune,
             workspace::workspace_context,
             workspace::context_list,
             workspace::context_import,
+            workspace::context_import_bytes,
             workspace::context_remove,
             workspace::artifact_list,
             workspace::artifact_reveal,
@@ -141,6 +154,11 @@ pub fn run() {
             workspace::checkpoint_preview,
             runs::session_list,
             runs::session_create,
+            runs::session_fork,
+            runs::session_rename,
+            runs::session_delete,
+            runs::session_archive,
+            runs::session_unarchive,
             runs::run_list,
             runs::run_recent,
             runs::run_events,
@@ -241,6 +259,7 @@ async fn schedule_loop(app: tauri::AppHandle, state: AppState) {
                 provider_id: schedule.provider_id.clone(),
                 created_at: stamp.clone(),
                 updated_at: stamp,
+                archived_at: None,
             };
             if state.db.lock().await.insert_session(&session).is_ok() {
                 let request = StartRunRequest {

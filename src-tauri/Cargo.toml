@@ -22,8 +22,9 @@ futures-util = "0.3"
 globset = "0.4"
 ignore = "0.4"
 portable-pty = "0.9"
-regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+base64 = "0.22"
+regex = "1"
 rmcp = { version = "3", features = ["client", "transport-child-process"] }
 rusqlite = { version = "0.38", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
@@ -41,6 +42,7 @@ tokio = { version = "1", features = ["fs", "io-util", "macros", "process", "rt-m
 tokio-util = "0.7"
 uuid = { version = "1", features = ["v4", "serde"] }
 which = "8"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }

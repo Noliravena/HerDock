@@ -8,10 +8,10 @@ use uuid::Uuid;
 use crate::{
     commands::error::{err, CommandResult},
     domain::models::{
-        Artifact, ContextImportRequest, ContextItem, FileRead, FsNode, SearchResult, Workspace,
-        WorkspaceContext,
+        Artifact, ContextImportBytesRequest, ContextImportRequest, ContextItem, FilePreview,
+        FileRead, FsNode, GitWorktree, SearchResult, Workspace, WorkspaceContext, WorktreeList,
     },
-    services::{checkpoints, context, state::AppState, workspace},
+    services::{checkpoints, context, preview, state::AppState, workspace, worktree},
 };
 
 #[tauri::command]
@@ -38,6 +38,9 @@ pub async fn workspace_open(path: String, state: State<'_, AppState>) -> Command
         root_path: root_string,
         branch: workspace::git_branch(&root),
         dirty_summary: workspace::git_dirty_summary(&root),
+        auto_execute: existing
+            .as_ref()
+            .and_then(|value| value.auto_execute.clone()),
         created_at: existing
             .as_ref()
             .map(|value| value.created_at.clone())
@@ -45,7 +48,25 @@ pub async fn workspace_open(path: String, state: State<'_, AppState>) -> Command
         updated_at: stamp,
     };
     db.upsert_workspace(&workspace).map_err(err)?;
-    Ok(workspace)
+    Ok(db
+        .workspace(&workspace.id)
+        .map_err(err)?
+        .unwrap_or(workspace))
+}
+
+#[tauri::command]
+pub async fn workspace_set_auto_execute(
+    workspace_id: String,
+    auto_execute: Option<String>,
+    state: State<'_, AppState>,
+) -> CommandResult<Workspace> {
+    state
+        .db
+        .lock()
+        .await
+        .set_workspace_auto_execute(workspace_id.trim(), auto_execute.as_deref())
+        .map_err(err)?
+        .ok_or_else(|| "workspace not found".to_string().into())
 }
 
 #[tauri::command]
@@ -66,6 +87,56 @@ pub async fn file_read(
 ) -> CommandResult<FileRead> {
     let root = root_for(&state, &workspace_id).await?;
     workspace::read_file(Path::new(&root), &path).map_err(err)
+}
+
+#[tauri::command]
+pub async fn file_preview(
+    workspace_id: String,
+    path: String,
+    state: State<'_, AppState>,
+) -> CommandResult<FilePreview> {
+    let root = root_for(&state, &workspace_id).await?;
+    preview::preview_file(Path::new(&root), &path).map_err(err)
+}
+
+#[tauri::command]
+pub async fn git_worktree_list(
+    workspace_id: String,
+    state: State<'_, AppState>,
+) -> CommandResult<WorktreeList> {
+    let root = root_for(&state, &workspace_id).await?;
+    worktree::list(Path::new(&root)).map_err(err)
+}
+
+#[tauri::command]
+pub async fn git_worktree_add(
+    workspace_id: String,
+    name: String,
+    start_point: Option<String>,
+    state: State<'_, AppState>,
+) -> CommandResult<GitWorktree> {
+    let root = root_for(&state, &workspace_id).await?;
+    worktree::add(Path::new(&root), &name, start_point.as_deref()).map_err(err)
+}
+
+#[tauri::command]
+pub async fn git_worktree_remove(
+    workspace_id: String,
+    path: String,
+    force: Option<bool>,
+    state: State<'_, AppState>,
+) -> CommandResult<()> {
+    let root = root_for(&state, &workspace_id).await?;
+    worktree::remove(Path::new(&root), &path, force.unwrap_or(false)).map_err(err)
+}
+
+#[tauri::command]
+pub async fn git_worktree_prune(
+    workspace_id: String,
+    state: State<'_, AppState>,
+) -> CommandResult<String> {
+    let root = root_for(&state, &workspace_id).await?;
+    worktree::prune(Path::new(&root)).map_err(err)
 }
 
 #[tauri::command]
@@ -203,6 +274,29 @@ pub async fn context_import(
 }
 
 #[tauri::command]
+pub async fn context_import_bytes(
+    request: ContextImportBytesRequest,
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<ContextItem>> {
+    let bytes = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        &request.bytes_base64,
+    )
+    .map_err(|error| format!("invalid attachment encoding: {error}"))?;
+    let db = state.db.lock().await;
+    let item = context::import_bytes(
+        &db,
+        &state.data_dir,
+        &request.workspace_id,
+        &request.file_name,
+        &request.mime_type,
+        &bytes,
+    )
+    .map_err(err)?;
+    Ok(vec![item])
+}
+
+#[tauri::command]
 pub async fn context_remove(context_id: String, state: State<'_, AppState>) -> CommandResult<()> {
     let item = state
         .db
@@ -240,6 +334,30 @@ pub async fn artifact_list(
     db.replace_artifacts(&workspace_id, &artifacts)
         .map_err(err)?;
     db.list_artifacts(&workspace_id).map_err(err)
+}
+
+#[tauri::command]
+pub async fn file_reveal(
+    workspace_id: String,
+    path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CommandResult<()> {
+    let root = root_for(&state, &workspace_id).await?;
+    let target = workspace::resolve_existing(Path::new(&root), &path).map_err(err)?;
+    app.opener().reveal_item_in_dir(target).map_err(err)
+}
+
+#[tauri::command]
+pub async fn workspace_reveal(
+    workspace_id: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CommandResult<()> {
+    let root = root_for(&state, &workspace_id).await?;
+    app.opener()
+        .reveal_item_in_dir(PathBuf::from(root))
+        .map_err(err)
 }
 
 #[tauri::command]

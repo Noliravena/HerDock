@@ -58,6 +58,7 @@ pub async fn session_create(
         provider_id,
         created_at: stamp.clone(),
         updated_at: stamp,
+        archived_at: None,
     };
     state
         .db
@@ -66,6 +67,114 @@ pub async fn session_create(
         .insert_session(&session)
         .map_err(err)?;
     Ok(session)
+}
+
+#[tauri::command]
+pub async fn session_fork(
+    id: String,
+    before_seq: Option<i64>,
+    state: State<'_, AppState>,
+) -> CommandResult<Session> {
+    state
+        .db
+        .lock()
+        .await
+        .fork_session(id.trim(), before_seq)
+        .map_err(err)
+}
+
+const LIVE_STATUSES: &[&str] = &[
+    "queued",
+    "starting",
+    "running",
+    "waiting_approval",
+    "waiting_human",
+];
+
+#[tauri::command]
+pub async fn session_rename(
+    id: String,
+    title: String,
+    state: State<'_, AppState>,
+) -> CommandResult<Session> {
+    let trimmed = title.trim();
+    if trimmed.is_empty() {
+        return Err("title required".into());
+    }
+    state
+        .db
+        .lock()
+        .await
+        .update_session_title(&id, trimmed)
+        .map_err(err)?
+        .ok_or_else(|| "session not found".into())
+}
+
+#[tauri::command]
+pub async fn session_delete(id: String, state: State<'_, AppState>) -> CommandResult<()> {
+    let runs = state.db.lock().await.list_runs(&id).map_err(err)?;
+    for run in runs {
+        if LIVE_STATUSES.contains(&run.status.as_str()) {
+            let _ = cancel_run_inner(&run.id, &state).await;
+        }
+    }
+    let deleted = state.db.lock().await.delete_session(&id).map_err(err)?;
+    if !deleted {
+        return Err("session not found".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn session_archive(id: String, state: State<'_, AppState>) -> CommandResult<Session> {
+    set_session_archived(id, true, state).await
+}
+
+#[tauri::command]
+pub async fn session_unarchive(id: String, state: State<'_, AppState>) -> CommandResult<Session> {
+    set_session_archived(id, false, state).await
+}
+
+async fn set_session_archived(
+    id: String,
+    archived: bool,
+    state: State<'_, AppState>,
+) -> CommandResult<Session> {
+    state
+        .db
+        .lock()
+        .await
+        .set_session_archived(&id, archived)
+        .map_err(err)?
+        .ok_or_else(|| "session not found".into())
+}
+
+async fn cancel_run_inner(run_id: &str, state: &State<'_, AppState>) -> CommandResult<()> {
+    let token = state.runs.lock().await.get(run_id).cloned();
+    if let Some(token) = token.as_ref() {
+        if let Some(run) = state.db.lock().await.run(run_id).map_err(err)? {
+            if let Some(profile) = state
+                .db
+                .lock()
+                .await
+                .provider(&run.provider_id)
+                .map_err(err)?
+            {
+                use crate::services::providers::ProviderAdapter;
+                crate::services::providers::adapter(&profile).cancel(token);
+            } else {
+                token.cancel();
+            }
+        } else {
+            token.cancel();
+        }
+    }
+    state
+        .db
+        .lock()
+        .await
+        .update_run_status(run_id, "cancelled", None, None)
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -240,31 +349,7 @@ pub async fn run_retry(
 
 #[tauri::command]
 pub async fn run_cancel(run_id: String, state: State<'_, AppState>) -> CommandResult<()> {
-    let token = state.runs.lock().await.get(&run_id).cloned();
-    if let Some(token) = token.as_ref() {
-        if let Some(run) = state.db.lock().await.run(&run_id).map_err(err)? {
-            if let Some(profile) = state
-                .db
-                .lock()
-                .await
-                .provider(&run.provider_id)
-                .map_err(err)?
-            {
-                use crate::services::providers::ProviderAdapter;
-                crate::services::providers::adapter(&profile).cancel(token);
-            } else {
-                token.cancel();
-            }
-        } else {
-            token.cancel();
-        }
-    }
-    state
-        .db
-        .lock()
-        .await
-        .update_run_status(&run_id, "cancelled", None, None)
-        .map_err(err)
+    cancel_run_inner(&run_id, &state).await
 }
 
 #[tauri::command]

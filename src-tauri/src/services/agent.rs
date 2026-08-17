@@ -23,7 +23,7 @@ use crate::{
     },
     infra::secrets,
     services::{
-        checkpoints, context, policy, process,
+        budget, checkpoints, context, policy, process,
         providers::{self, ProviderAdapter, ProviderRequest, ProviderStart, ToolCall},
         skills,
         state::{AppState, EventSink},
@@ -71,6 +71,21 @@ pub async fn start(
             .ok_or_else(|| anyhow!("provider not found"))?;
         (workspace, profile)
     };
+    if request
+        .auto_execute
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        request.auto_execute = workspace
+            .auto_execute
+            .clone()
+            .filter(|value| !value.trim().is_empty());
+        if request.auto_execute.is_none() {
+            request.auto_execute = Some(state.db.lock().await.settings()?.auto_execute);
+        }
+    }
     workspace::canonical_workspace(&workspace.root_path)?;
     if request.prompt.trim().is_empty() {
         return Err(anyhow!("prompt is required"));
@@ -127,7 +142,15 @@ pub async fn start(
         started_at: None,
         finished_at: None,
     };
+    let token = CancellationToken::new();
     {
+        let mut runs = state.runs.lock().await;
+        if !budget::can_admit(runs.len()) {
+            return Err(anyhow!(budget::busy_message(runs.len())));
+        }
+        runs.insert(run.id.clone(), token.clone());
+    }
+    if let Err(error) = async {
         let mut db = state.db.lock().await;
         db.insert_run(&run)?;
         db.insert_message(&run.session_id, "user", &run.prompt)?;
@@ -137,13 +160,13 @@ pub async fn start(
             &skill_bindings,
             &request.mcp_server_ids,
         )?;
+        anyhow::Ok(())
     }
-    let token = CancellationToken::new();
-    state
-        .runs
-        .lock()
-        .await
-        .insert(run.id.clone(), token.clone());
+    .await
+    {
+        state.runs.lock().await.remove(&run.id);
+        return Err(error);
+    }
     let sink = EventSink::new(app, channel);
     emit(&state, &sink, &run.id, "queued", json!({"status":"queued"})).await?;
     let task_run = run.clone();

@@ -64,6 +64,21 @@ impl Database {
             "0008_design_artifacts",
             include_str!("../../migrations/0008_design_artifacts.sql"),
         )?;
+        apply_migration(
+            &mut conn,
+            "0009_model_first_cli",
+            include_str!("../../migrations/0009_model_first_cli.sql"),
+        )?;
+        apply_migration(
+            &mut conn,
+            "0010_session_archive",
+            include_str!("../../migrations/0010_session_archive.sql"),
+        )?;
+        apply_migration(
+            &mut conn,
+            "0011_workspace_auto_execute",
+            include_str!("../../migrations/0011_workspace_auto_execute.sql"),
+        )?;
         conn.execute(
             "UPDATE runs SET status='interrupted', updated_at=?1, finished_at=?1 WHERE status IN ('queued','starting','running','waiting_approval','paused')",
             [now()],
@@ -73,8 +88,8 @@ impl Database {
 
     pub fn upsert_workspace(&self, workspace: &Workspace) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO workspaces(id,name,root_path,branch,dirty_summary,created_at,updated_at)
-             VALUES(?1,?2,?3,?4,?5,?6,?7)
+            "INSERT INTO workspaces(id,name,root_path,branch,dirty_summary,created_at,updated_at,auto_execute)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8)
              ON CONFLICT(root_path) DO UPDATE SET name=excluded.name, branch=excluded.branch,
              dirty_summary=excluded.dirty_summary, updated_at=excluded.updated_at",
             params![
@@ -84,7 +99,8 @@ impl Database {
                 workspace.branch,
                 workspace.dirty_summary,
                 workspace.created_at,
-                workspace.updated_at
+                workspace.updated_at,
+                workspace.auto_execute,
             ],
         )?;
         Ok(())
@@ -92,44 +108,108 @@ impl Database {
 
     pub fn workspace_by_path(&self, path: &str) -> Result<Option<Workspace>> {
         self.conn.query_row(
-            "SELECT id,name,root_path,branch,dirty_summary,created_at,updated_at FROM workspaces WHERE root_path=?1",
+            "SELECT id,name,root_path,branch,dirty_summary,created_at,updated_at,auto_execute FROM workspaces WHERE root_path=?1",
             [path], row_workspace,
         ).optional().map_err(Into::into)
     }
 
     pub fn workspace(&self, id: &str) -> Result<Option<Workspace>> {
         self.conn.query_row(
-            "SELECT id,name,root_path,branch,dirty_summary,created_at,updated_at FROM workspaces WHERE id=?1",
+            "SELECT id,name,root_path,branch,dirty_summary,created_at,updated_at,auto_execute FROM workspaces WHERE id=?1",
             [id], row_workspace,
         ).optional().map_err(Into::into)
     }
 
     pub fn list_workspaces(&self) -> Result<Vec<Workspace>> {
-        query_all(&self.conn, "SELECT id,name,root_path,branch,dirty_summary,created_at,updated_at FROM workspaces ORDER BY updated_at DESC", [], row_workspace)
+        query_all(&self.conn, "SELECT id,name,root_path,branch,dirty_summary,created_at,updated_at,auto_execute FROM workspaces ORDER BY updated_at DESC", [], row_workspace)
+    }
+
+    pub fn set_workspace_auto_execute(
+        &self,
+        id: &str,
+        auto_execute: Option<&str>,
+    ) -> Result<Option<Workspace>> {
+        let value = auto_execute.map(str::trim).filter(|item| !item.is_empty());
+        self.conn.execute(
+            "UPDATE workspaces SET auto_execute=?1, updated_at=?2 WHERE id=?3",
+            params![value, now(), id],
+        )?;
+        self.workspace(id)
     }
 
     pub fn insert_session(&self, session: &Session) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO sessions(id,workspace_id,title,kind,provider_id,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-            params![session.id, session.workspace_id, session.title, session.kind, session.provider_id, session.created_at, session.updated_at],
+            "INSERT INTO sessions(id,workspace_id,title,kind,provider_id,created_at,updated_at,archived_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![session.id, session.workspace_id, session.title, session.kind, session.provider_id, session.created_at, session.updated_at, session.archived_at],
         )?;
         Ok(())
     }
 
     pub fn list_sessions(&self, workspace_id: &str) -> Result<Vec<Session>> {
-        let mut stmt = self.conn.prepare("SELECT id,workspace_id,title,kind,provider_id,created_at,updated_at FROM sessions WHERE workspace_id=?1 ORDER BY updated_at DESC")?;
+        let mut stmt = self.conn.prepare("SELECT id,workspace_id,title,kind,provider_id,created_at,updated_at,archived_at FROM sessions WHERE workspace_id=?1 ORDER BY updated_at DESC")?;
         let rows = stmt.query_map([workspace_id], row_session)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
     pub fn session(&self, id: &str) -> Result<Option<Session>> {
         self.conn.query_row(
-            "SELECT id,workspace_id,title,kind,provider_id,created_at,updated_at FROM sessions WHERE id=?1",
+            "SELECT id,workspace_id,title,kind,provider_id,created_at,updated_at,archived_at FROM sessions WHERE id=?1",
             [id], row_session,
         ).optional().map_err(Into::into)
     }
 
+    pub fn update_session_title(&self, id: &str, title: &str) -> Result<Option<Session>> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Ok(None);
+        }
+        let changed = self.conn.execute(
+            "UPDATE sessions SET title=?1, updated_at=?2 WHERE id=?3",
+            params![title, now(), id],
+        )?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        self.session(id)
+    }
+
+    pub fn delete_session(&self, id: &str) -> Result<bool> {
+        let changed = self
+            .conn
+            .execute("DELETE FROM sessions WHERE id=?1", [id])?;
+        Ok(changed > 0)
+    }
+
+    pub fn set_session_archived(&self, id: &str, archived: bool) -> Result<Option<Session>> {
+        let stamp = now();
+        let changed = if archived {
+            self.conn.execute(
+                "UPDATE sessions SET archived_at=?1, updated_at=?1 WHERE id=?2 AND archived_at IS NULL",
+                params![stamp, id],
+            )?
+        } else {
+            self.conn.execute(
+                "UPDATE sessions SET archived_at=NULL, updated_at=?1 WHERE id=?2 AND archived_at IS NOT NULL",
+                params![stamp, id],
+            )?
+        };
+        if changed == 0 {
+            return self.session(id);
+        }
+        self.session(id)
+    }
+
     pub fn insert_message(&self, session_id: &str, role: &str, content: &str) -> Result<()> {
+        self.insert_message_at(session_id, role, content, &now())
+    }
+
+    pub fn insert_message_at(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        created_at: &str,
+    ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO messages(id,session_id,role,content,created_at) VALUES(?1,?2,?3,?4,?5)",
             params![
@@ -137,7 +217,7 @@ impl Database {
                 session_id,
                 role,
                 content,
-                now()
+                created_at
             ],
         )?;
         self.conn.execute(
@@ -145,6 +225,15 @@ impl Database {
             params![now(), session_id],
         )?;
         Ok(())
+    }
+
+    pub fn list_messages(&self, session_id: &str) -> Result<Vec<(String, String, String)>> {
+        query_all(
+            &self.conn,
+            "SELECT role,content,created_at FROM messages WHERE session_id=?1 ORDER BY created_at ASC, rowid ASC",
+            [session_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
     }
 
     pub fn list_recent_messages(&self, session_id: &str, limit: i64) -> Result<Vec<Value>> {
@@ -183,6 +272,64 @@ impl Database {
         let mut stmt = self.conn.prepare("SELECT id,session_id,workspace_id,provider_id,model,status,prompt,plan_progress,error_message,token_usage,created_at,updated_at,started_at,finished_at FROM runs WHERE session_id=?1 ORDER BY created_at DESC")?;
         let rows = stmt.query_map([session_id], row_run)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn fork_session(&mut self, source_id: &str, before_seq: Option<i64>) -> Result<Session> {
+        let source = self
+            .session(source_id)?
+            .ok_or_else(|| anyhow::anyhow!("session not found"))?;
+        let messages = self.list_messages(source_id)?;
+        let mut runs = self.list_runs(source_id)?;
+        runs.reverse();
+        let stamp = now();
+        let session = Session {
+            id: format!("sess_{}", uuid::Uuid::new_v4().simple()),
+            workspace_id: source.workspace_id.clone(),
+            title: format!("{} · 分叉", source.title),
+            kind: source.kind.clone(),
+            provider_id: source.provider_id.clone(),
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+            archived_at: None,
+        };
+        self.insert_session(&session)?;
+        for (role, content, created_at) in messages {
+            self.insert_message_at(&session.id, &role, &content, &created_at)?;
+        }
+        let last_index = runs.len().saturating_sub(1);
+        for (index, run) in runs.iter().enumerate() {
+            let mut events = self.list_events(&run.id)?;
+            if index == last_index {
+                if let Some(seq) = before_seq {
+                    events.retain(|event| event.seq <= seq);
+                }
+            }
+            let context_ids = self.run_context_ids(&run.id)?;
+            let skills = self.run_skills(&run.id)?;
+            let mcp_ids = self.run_mcp_ids(&run.id)?;
+            let mut cloned = run.clone();
+            cloned.id = format!(
+                "RUN-{}",
+                &uuid::Uuid::new_v4().simple().to_string()[..8].to_uppercase()
+            );
+            cloned.session_id = session.id.clone();
+            if matches!(
+                cloned.status.as_str(),
+                "queued" | "starting" | "running" | "waiting_approval" | "waiting_human" | "paused"
+            ) {
+                cloned.status = "interrupted".into();
+                cloned.finished_at = Some(stamp.clone());
+                cloned.updated_at = stamp.clone();
+            }
+            self.insert_run(&cloned)?;
+            self.bind_run_inputs(&cloned.id, &context_ids, &skills, &mcp_ids)?;
+            for mut event in events {
+                event.id = format!("evt_{}", uuid::Uuid::new_v4().simple());
+                event.run_id = cloned.id.clone();
+                self.insert_event(&event)?;
+            }
+        }
+        Ok(session)
     }
 
     pub fn recent_runs(&self, limit: i64) -> Result<Vec<Run>> {
@@ -240,6 +387,17 @@ impl Database {
             [run_id],
             |row| row.get(0),
         )?)
+    }
+
+    pub fn last_event_ts(&self, run_id: &str) -> Result<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT ts FROM run_events WHERE run_id=?1 ORDER BY seq DESC LIMIT 1",
+                [run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(Into::into)
     }
 
     pub fn insert_event(&self, event: &RunEvent) -> Result<()> {
@@ -646,16 +804,40 @@ impl Database {
     }
 
     pub fn seed_providers(&self) -> Result<()> {
+        // CLI providers still carry model defaults: the chat surface addresses
+        // models, while the executable/login behind them is a Settings concern.
         let defaults = [
-            ("codex", "cli", "Codex CLI", None, None),
-            ("claude", "cli", "Claude CLI", None, None),
-            ("grok", "cli", "Grok Build CLI", None, None),
+            (
+                "codex",
+                "cli",
+                "Codex CLI",
+                Some("gpt-5.4-codex"),
+                None,
+                Some(r#"["gpt-5.4-codex","gpt-5.4","gpt-5.4-mini"]"#),
+            ),
+            (
+                "claude",
+                "cli",
+                "Claude CLI",
+                Some("claude-sonnet-4-6"),
+                None,
+                Some(r#"["claude-sonnet-4-6","claude-opus-4-6","claude-haiku-4-6"]"#),
+            ),
+            (
+                "grok",
+                "cli",
+                "Grok Build CLI",
+                Some("grok-4"),
+                None,
+                Some(r#"["grok-4","grok-4-fast","grok-code-fast-1"]"#),
+            ),
             (
                 "openai",
                 "openai",
                 "OpenAI",
                 Some("gpt-5.4"),
                 Some("https://api.openai.com"),
+                Some(r#"["gpt-5.4","gpt-5.4-mini"]"#),
             ),
             (
                 "anthropic",
@@ -663,6 +845,7 @@ impl Database {
                 "Anthropic",
                 Some("claude-sonnet-4-6"),
                 Some("https://api.anthropic.com"),
+                Some(r#"["claude-sonnet-4-6","claude-opus-4-6","claude-haiku-4-6"]"#),
             ),
             (
                 "xai",
@@ -670,6 +853,7 @@ impl Database {
                 "xAI",
                 Some("grok-4"),
                 Some("https://api.x.ai"),
+                Some(r#"["grok-4","grok-4-fast"]"#),
             ),
             (
                 "compatible",
@@ -677,9 +861,10 @@ impl Database {
                 "自定义兼容端点",
                 None,
                 None,
+                None,
             ),
         ];
-        for (id, kind, name, model, url) in defaults {
+        for (id, kind, name, model, url, candidates) in defaults {
             let profile = ProviderProfile {
                 id: id.into(),
                 provider_type: kind.into(),
@@ -693,12 +878,15 @@ impl Database {
                     Some(format!("provider:{id}"))
                 },
                 enabled: true,
-                config: json!({}),
+                config: match candidates {
+                    Some(list) => serde_json::from_str(list).unwrap_or_else(|_| json!({})),
+                    None => json!({}),
+                },
             };
             self.conn.execute(
                 "INSERT OR IGNORE INTO provider_profiles(id,provider_type,display_name,model,base_url,executable,credential_ref,enabled,config_json,created_at,updated_at)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,1,'{}',?8,?8)",
-                params![profile.id, profile.provider_type, profile.display_name, profile.model, profile.base_url, profile.executable, profile.credential_ref, now()],
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,1,?8,?9,?9)",
+                params![profile.id, profile.provider_type, profile.display_name, profile.model, profile.base_url, profile.executable, profile.credential_ref, profile.config.to_string(), now()],
             )?;
         }
         Ok(())
@@ -906,6 +1094,7 @@ fn row_workspace(row: &Row<'_>) -> rusqlite::Result<Workspace> {
         dirty_summary: row.get(4)?,
         created_at: row.get(5)?,
         updated_at: row.get(6)?,
+        auto_execute: row.get(7)?,
     })
 }
 
@@ -918,6 +1107,7 @@ fn row_session(row: &Row<'_>) -> rusqlite::Result<Session> {
         provider_id: row.get(4)?,
         created_at: row.get(5)?,
         updated_at: row.get(6)?,
+        archived_at: row.get(7)?,
     })
 }
 
@@ -1049,6 +1239,7 @@ mod tests {
             root_path: root.to_string_lossy().into_owned(),
             branch: None,
             dirty_summary: None,
+            auto_execute: None,
             created_at: stamp.clone(),
             updated_at: stamp.clone(),
         })
@@ -1061,6 +1252,7 @@ mod tests {
             provider_id: "codex".into(),
             created_at: stamp.clone(),
             updated_at: stamp.clone(),
+            archived_at: None,
         })
         .unwrap();
         for run_id in ["run_original", "run_later"] {
@@ -1156,6 +1348,7 @@ mod tests {
             root_path: dir.path().to_string_lossy().into_owned(),
             branch: None,
             dirty_summary: None,
+            auto_execute: None,
             created_at: stamp.clone(),
             updated_at: stamp.clone(),
         })
@@ -1168,6 +1361,7 @@ mod tests {
             provider_id: "codex".into(),
             created_at: stamp.clone(),
             updated_at: stamp.clone(),
+            archived_at: None,
         })
         .unwrap();
         db.insert_run(&Run {
@@ -1299,5 +1493,174 @@ mod tests {
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts[0].id, original.id);
         assert_eq!(artifacts[0].name, "Keep me");
+    }
+
+    #[test]
+    fn session_rename_and_delete_cascade_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(&dir.path().join("sessions.db")).unwrap();
+        let stamp = "2026-08-13T00:00:00Z".to_string();
+        db.upsert_workspace(&Workspace {
+            id: "ws_sess".into(),
+            name: "Sess".into(),
+            root_path: dir.path().to_string_lossy().into_owned(),
+            branch: None,
+            dirty_summary: None,
+            auto_execute: None,
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        db.insert_session(&Session {
+            id: "sess_one".into(),
+            workspace_id: "ws_sess".into(),
+            title: "新会话".into(),
+            kind: "mixed".into(),
+            provider_id: "codex".into(),
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+            archived_at: None,
+        })
+        .unwrap();
+        db.insert_run(&Run {
+            id: "run_one".into(),
+            session_id: "sess_one".into(),
+            workspace_id: "ws_sess".into(),
+            provider_id: "codex".into(),
+            model: None,
+            status: "completed".into(),
+            prompt: "hello".into(),
+            plan_progress: None,
+            error_message: None,
+            token_usage: json!({}),
+            created_at: stamp.clone(),
+            updated_at: stamp,
+            started_at: None,
+            finished_at: None,
+        })
+        .unwrap();
+
+        let renamed = db
+            .update_session_title("sess_one", "门店复盘")
+            .unwrap()
+            .unwrap();
+        assert_eq!(renamed.title, "门店复盘");
+        assert!(db
+            .update_session_title("sess_one", "   ")
+            .unwrap()
+            .is_none());
+        assert!(db.update_session_title("missing", "x").unwrap().is_none());
+
+        let archived = db.set_session_archived("sess_one", true).unwrap().unwrap();
+        assert!(archived.archived_at.is_some());
+        assert!(db.list_sessions("ws_sess").unwrap()[0]
+            .archived_at
+            .is_some());
+        let restored = db.set_session_archived("sess_one", false).unwrap().unwrap();
+        assert!(restored.archived_at.is_none());
+        assert!(db.set_session_archived("missing", true).unwrap().is_none());
+
+        assert!(db.delete_session("sess_one").unwrap());
+        assert!(db.session("sess_one").unwrap().is_none());
+        assert!(db.list_runs("sess_one").unwrap().is_empty());
+        assert!(!db.delete_session("sess_one").unwrap());
+    }
+
+    #[test]
+    fn workspace_auto_execute_survives_reopen_upsert() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(&dir.path().join("ws.db")).unwrap();
+        let stamp = now();
+        db.upsert_workspace(&Workspace {
+            id: "ws_perm".into(),
+            name: "Perm".into(),
+            root_path: dir.path().to_string_lossy().into_owned(),
+            branch: None,
+            dirty_summary: None,
+            auto_execute: None,
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        db.set_workspace_auto_execute("ws_perm", Some("ask_always"))
+            .unwrap();
+        db.upsert_workspace(&Workspace {
+            id: "ws_perm".into(),
+            name: "Perm".into(),
+            root_path: dir.path().to_string_lossy().into_owned(),
+            branch: Some("main".into()),
+            dirty_summary: None,
+            auto_execute: None,
+            created_at: stamp.clone(),
+            updated_at: stamp,
+        })
+        .unwrap();
+        let stored = db.workspace("ws_perm").unwrap().unwrap();
+        assert_eq!(stored.auto_execute.as_deref(), Some("ask_always"));
+        assert_eq!(stored.branch.as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn fork_session_copies_messages_and_truncates_latest_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = Database::open(&dir.path().join("fork.db")).unwrap();
+        let stamp = now();
+        db.upsert_workspace(&Workspace {
+            id: "ws_fork".into(),
+            name: "Fork".into(),
+            root_path: dir.path().to_string_lossy().into_owned(),
+            branch: None,
+            dirty_summary: None,
+            auto_execute: None,
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+        })
+        .unwrap();
+        db.insert_session(&Session {
+            id: "sess_fork".into(),
+            workspace_id: "ws_fork".into(),
+            title: "原会话".into(),
+            kind: "mixed".into(),
+            provider_id: "codex".into(),
+            created_at: stamp.clone(),
+            updated_at: stamp.clone(),
+            archived_at: None,
+        })
+        .unwrap();
+        db.insert_message("sess_fork", "user", "hello").unwrap();
+        db.insert_run(&Run {
+            id: "run_fork".into(),
+            session_id: "sess_fork".into(),
+            workspace_id: "ws_fork".into(),
+            provider_id: "codex".into(),
+            model: None,
+            status: "running".into(),
+            prompt: "hello".into(),
+            plan_progress: None,
+            error_message: None,
+            token_usage: json!({}),
+            created_at: stamp.clone(),
+            updated_at: stamp,
+            started_at: None,
+            finished_at: None,
+        })
+        .unwrap();
+        for seq in 1..=3 {
+            db.insert_event(&RunEvent::new(
+                "run_fork",
+                seq,
+                "assistant_delta",
+                json!({"text": format!("t{seq}")}),
+            ))
+            .unwrap();
+        }
+        let forked = db.fork_session("sess_fork", Some(2)).unwrap();
+        assert!(forked.title.contains("分叉"));
+        assert_eq!(db.list_messages(&forked.id).unwrap().len(), 1);
+        let runs = db.list_runs(&forked.id).unwrap();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].status, "interrupted");
+        assert_eq!(db.list_events(&runs[0].id).unwrap().len(), 2);
+        assert_eq!(db.list_events("run_fork").unwrap().len(), 3);
     }
 }
