@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowClockwise,
   Check,
   DeviceMobile,
+  FirstAid,
   Key,
+  MagnifyingGlass,
   Plug,
   ShieldCheck,
   SignIn,
@@ -18,23 +20,82 @@ import {
   hostApi,
   type GrokAuthStatus,
   type McpServer,
+  type ProbeResult,
+  type ProviderHealth,
   type ProviderProfile,
   type SaveProviderRequest,
 } from "../host/client";
+import {
+  searchSettingsEntries,
+  SETTINGS_NAV,
+  type SettingsEntry,
+  type SettingsTab,
+} from "../lib/settingsCatalog";
 import { useWorkbench } from "../store/workbench";
+import { DoctorSettings } from "./DoctorSettings";
+import {
+  ErrorBanner,
+  ModelPickerList,
+  PageEmpty,
+  SegmentedField,
+  SpecSheet,
+  StatusPill,
+  Switch,
+  ToggleRow,
+  ToolRows,
+  useConfirm,
+} from "./pageElements";
 
-type Tab = "providers" | "mcp" | "security" | "updates" | "general";
+const NAV_ICON: Record<SettingsTab, typeof Key> = {
+  providers: Key,
+  mcp: Plug,
+  security: ShieldCheck,
+  updates: ArrowClockwise,
+  general: SlidersHorizontal,
+  doctor: FirstAid,
+};
 
 export function SettingsModal() {
-  const { mcpServers, providerProfiles, setSettingsOpen, settingsOpen } = useWorkbench(
+  const {
+    mcpServers,
+    providerProfiles,
+    providers,
+    openSettings,
+    setSettingsOpen,
+    settingsFocus,
+    settingsOpen,
+    settingsTab,
+    clearSettingsFocus,
+  } = useWorkbench(
     useShallow((state) => ({
       mcpServers: state.mcpServers,
       providerProfiles: state.providerProfiles,
+      providers: state.providers,
+      openSettings: state.openSettings,
       setSettingsOpen: state.setSettingsOpen,
+      settingsFocus: state.settingsFocus,
       settingsOpen: state.settingsOpen,
+      settingsTab: state.settingsTab,
+      clearSettingsFocus: state.clearSettingsFocus,
     })),
   );
-  const [tab, setTab] = useState<Tab>("providers");
+  const [query, setQuery] = useState("");
+  const extraEntries = useMemo<SettingsEntry[]>(
+    () =>
+      providerProfiles.map((profile) => ({
+        id: `provider-${profile.id}`,
+        tab: "providers" as const,
+        anchorId: `provider-${profile.id}`,
+        label: profile.displayName,
+        description: profile.providerType,
+        keywords: [profile.id, profile.providerType, "provider"],
+      })),
+    [providerProfiles],
+  );
+  const searchHits = useMemo(
+    () => searchSettingsEntries(query, extraEntries),
+    [query, extraEntries],
+  );
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -45,7 +106,25 @@ export function SettingsModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [settingsOpen, setSettingsOpen]);
 
+  useEffect(() => {
+    if (!settingsFocus) return;
+    const frame = window.requestAnimationFrame(() => {
+      const node = document.querySelector<HTMLElement>(
+        `[data-settings-id="${CSS.escape(settingsFocus)}"]`,
+      );
+      if (!node) return;
+      node.scrollIntoView({ block: "center", behavior: "smooth" });
+      node.classList.add("settings-anchor-hit");
+      window.setTimeout(() => {
+        node.classList.remove("settings-anchor-hit");
+        clearSettingsFocus();
+      }, 1600);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [settingsFocus, settingsTab, clearSettingsFocus]);
+
   if (!settingsOpen) return null;
+  const tab = settingsTab;
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}>
       <section
@@ -58,66 +137,84 @@ export function SettingsModal() {
         <header className="settings-head">
           <div>
             <div className="settings-title">设置</div>
-            <div className="settings-subtitle">本地 Provider、MCP 与桌面行为</div>
+            <div className="settings-subtitle">本地 Provider、MCP、代理与诊断</div>
           </div>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setSettingsOpen(false)}
-            title="关闭"
-          >
-            <X size={16} />
-          </button>
+          <div className="settings-head-tools">
+            <label className="settings-search">
+              <MagnifyingGlass size={14} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索设置"
+                aria-label="搜索设置"
+              />
+            </label>
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setSettingsOpen(false)}
+              title="关闭"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </header>
         <div className="settings-layout">
           <nav className="settings-nav">
-            <button
-              type="button"
-              className={tab === "providers" ? "active" : ""}
-              onClick={() => setTab("providers")}
-            >
-              <Key size={16} />
-              Provider
-            </button>
-            <button
-              type="button"
-              className={tab === "mcp" ? "active" : ""}
-              onClick={() => setTab("mcp")}
-            >
-              <Plug size={16} />
-              本地 MCP
-            </button>
-            <button
-              type="button"
-              className={tab === "security" ? "active" : ""}
-              onClick={() => setTab("security")}
-            >
-              <ShieldCheck size={16} />
-              安全规则
-            </button>
-            <button
-              type="button"
-              className={tab === "updates" ? "active" : ""}
-              onClick={() => setTab("updates")}
-            >
-              <ArrowClockwise size={16} />
-              应用更新
-            </button>
-            <button
-              type="button"
-              className={tab === "general" ? "active" : ""}
-              onClick={() => setTab("general")}
-            >
-              <SlidersHorizontal size={16} />
-              通用
-            </button>
+            {SETTINGS_NAV.map((item) => {
+              const Icon = NAV_ICON[item.id];
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={tab === item.id ? "active" : ""}
+                  onClick={() => {
+                    setQuery("");
+                    openSettings({ tab: item.id });
+                  }}
+                >
+                  <Icon size={16} />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
           <div className="settings-content">
-            {tab === "providers" && <ProviderSettings profiles={providerProfiles} />}
-            {tab === "mcp" && <McpSettings servers={mcpServers} />}
-            {tab === "security" && <SecuritySettings />}
-            {tab === "updates" && <UpdateSettings />}
-            {tab === "general" && <GeneralSettings />}
+            {query.trim() ? (
+              <div className="settings-stack">
+                {searchHits.length === 0 && (
+                  <p className="settings-copy">没有匹配「{query.trim()}」的设置项。</p>
+                )}
+                {searchHits.map((entry) => (
+                  <button
+                    type="button"
+                    className="settings-search-hit"
+                    key={entry.id}
+                    onClick={() => {
+                      setQuery("");
+                      openSettings({ tab: entry.tab, focus: entry.anchorId });
+                    }}
+                  >
+                    <strong>{entry.label}</strong>
+                    <span>
+                      {SETTINGS_NAV.find((item) => item.id === entry.tab)?.label} ·{" "}
+                      {entry.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {tab === "providers" && (
+                  <ProviderSettings profiles={providerProfiles} providers={providers} />
+                )}
+                {tab === "mcp" && <McpSettings servers={mcpServers} />}
+                {tab === "security" && <SecuritySettings />}
+                {tab === "updates" && <UpdateSettings />}
+                {tab === "general" && <GeneralSettings />}
+                {tab === "doctor" && <DoctorSettings />}
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -125,7 +222,13 @@ export function SettingsModal() {
   );
 }
 
-function ProviderSettings({ profiles }: { profiles: ProviderProfile[] }) {
+function ProviderSettings({
+  profiles,
+  providers,
+}: {
+  profiles: ProviderProfile[];
+  providers: ProviderHealth[];
+}) {
   const [drafts, setDrafts] = useState<Record<string, SaveProviderRequest>>({});
   const [status, setStatus] = useState<Record<string, string>>({});
   const reload = useWorkbench((state) => state.reloadProviders);
@@ -171,13 +274,23 @@ function ProviderSettings({ profiles }: { profiles: ProviderProfile[] }) {
     }
   };
   return (
-    <div className="settings-stack">
+    <div className="settings-stack" data-settings-id="providers">
+      <p className="settings-copy settings-lead">
+        对话界面以模型名称选择对象（如
+        gpt-5.4-codex、claude-sonnet-4-6）。本页管理模型背后的连接：CLI 可执行文件与登录、API Key
+        与端点。
+      </p>
       {profiles.map((profile) => {
         const draft = drafts[profile.id];
         if (!draft) return null;
         const cli = profile.providerType === "cli";
+        const health = providers.find((item) => item.id === profile.id);
         return (
-          <section className="settings-section" key={profile.id}>
+          <section
+            className="settings-section"
+            key={profile.id}
+            data-settings-id={`provider-${profile.id}`}
+          >
             <div className="settings-section-head">
               <div>
                 <b>{profile.displayName}</b>
@@ -187,17 +300,28 @@ function ProviderSettings({ profiles }: { profiles: ProviderProfile[] }) {
                     : profile.providerType === "anthropic"
                       ? "Anthropic Messages"
                       : "OpenAI-compatible"}
+                  {health?.version ? ` · ${health.version}` : ""}
                 </span>
               </div>
-              <label className="switch-label">
-                <input
-                  type="checkbox"
-                  checked={draft.enabled}
-                  onChange={(event) => update(profile.id, { enabled: event.target.checked })}
+              <div className="settings-head-actions">
+                <StatusPill
+                  state={health?.available ? "done" : "waiting"}
+                  label={health?.available ? "已连接" : "未连接"}
                 />
-                启用
-              </label>
+                <Switch
+                  label={`启用 ${profile.displayName}`}
+                  on={draft.enabled}
+                  onToggle={(enabled) => update(profile.id, { enabled })}
+                />
+              </div>
             </div>
+            {health && !health.available && health.detail && (
+              <ErrorBanner
+                title="这个连接暂时用不了"
+                detail={health.detail}
+                onRetry={() => void validate(profile.id)}
+              />
+            )}
             <div className="form-grid">
               {cli && (
                 <label>
@@ -280,6 +404,7 @@ function GrokAuthPanel({ onProviderReload }: { onProviderReload: () => Promise<v
   const [status, setStatus] = useState("正在读取本机登录状态");
   const [code, setCode] = useState("");
   const [deviceCode, setDeviceCode] = useState("");
+  const [askConfirm, confirmLayer] = useConfirm();
 
   const refresh = async () => {
     try {
@@ -336,7 +461,6 @@ function GrokAuthPanel({ onProviderReload }: { onProviderReload: () => Promise<v
   };
 
   const logout = async () => {
-    if (!window.confirm("退出本机 Grok Build CLI 登录？")) return;
     setAction("logout");
     try {
       const next = await hostApi.grokLogout();
@@ -358,9 +482,10 @@ function GrokAuthPanel({ onProviderReload }: { onProviderReload: () => Promise<v
           <b>Grok Build 本机登录</b>
           <span>{auth?.cliPath || "等待 CLI 检测"}</span>
         </div>
-        <span className={`st ${auth?.signedIn ? "ready" : auth?.expired ? "expired" : "missing"}`}>
-          {auth?.signedIn ? "已登录" : auth?.expired ? "已过期" : "未登录"}
-        </span>
+        <StatusPill
+          state={auth?.signedIn ? "done" : auth?.expired ? "failed" : "waiting"}
+          label={auth?.signedIn ? "已登录" : auth?.expired ? "已过期" : "未登录"}
+        />
       </div>
       {auth?.signedIn && (
         <div className="grok-account-line">
@@ -411,7 +536,20 @@ function GrokAuthPanel({ onProviderReload }: { onProviderReload: () => Promise<v
               设备码
             </button>
             {auth?.signedIn && (
-              <button type="button" disabled={action === "logout"} onClick={() => void logout()}>
+              <button
+                type="button"
+                disabled={action === "logout"}
+                onClick={() =>
+                  void askConfirm({
+                    title: "退出本机 Grok Build 登录？",
+                    body: "会清掉本机 CLI 的登录态，之后需要重新走 OAuth 或设备码。",
+                    confirmLabel: "退出登录",
+                    danger: true,
+                  }).then((ok) => {
+                    if (ok) void logout();
+                  })
+                }
+              >
                 <SignOut size={13} />
                 退出
               </button>
@@ -428,6 +566,7 @@ function GrokAuthPanel({ onProviderReload }: { onProviderReload: () => Promise<v
           <ArrowClockwise size={13} />
         </button>
       </div>
+      {confirmLayer}
     </div>
   );
 }
@@ -471,7 +610,7 @@ function McpSettings({ servers }: { servers: McpServer[] }) {
   };
   return (
     <div className="settings-stack">
-      <section className="settings-section">
+      <section className="settings-section" data-settings-id="mcp-add">
         <div className="settings-section-head">
           <div>
             <b>添加 stdio 服务</b>
@@ -548,6 +687,7 @@ function McpServerEditor({
       .join("\n"),
   });
   const [status, setStatus] = useState("");
+  const [askConfirm, confirmLayer] = useConfirm();
   useEffect(
     () =>
       setDraft({
@@ -605,11 +745,14 @@ function McpServerEditor({
             {server.status || (server.enabled ? "ready" : "stopped")} · {server.tools.length} tools
           </span>
         </div>
-        <span
-          className={`st ${server.status === "ready" ? "ready" : server.status === "error" ? "failed" : "missing"}`}
-        >
-          {server.status === "ready" ? "运行中" : server.status === "error" ? "错误" : "已停止"}
-        </span>
+        <StatusPill
+          state={
+            server.status === "ready" ? "working" : server.status === "error" ? "failed" : "waiting"
+          }
+          label={
+            server.status === "ready" ? "运行中" : server.status === "error" ? "错误" : "已停止"
+          }
+        />
       </div>
       <details className="settings-editor">
         <summary>编辑连接</summary>
@@ -652,11 +795,13 @@ function McpServerEditor({
         </div>
       </details>
       {server.tools.length > 0 && (
-        <div className="tool-list">
-          {server.tools.map((tool) => (
-            <code key={tool}>{tool}</code>
-          ))}
-        </div>
+        <ToolRows
+          items={server.tools.map((tool) => ({
+            id: tool,
+            name: tool,
+            tone: server.status === "ready" ? "ok" : undefined,
+          }))}
+        />
       )}
       <div className="settings-actions">
         <span className="settings-status">{status}</span>
@@ -669,24 +814,41 @@ function McpServerEditor({
         <button
           type="button"
           onClick={() =>
-            window.confirm(`删除 ${server.name}？`) &&
-            void hostApi.deleteMcp(server.id).then(onRefresh)
+            void askConfirm({
+              title: `删除「${server.name}」？`,
+              body: "这条 stdio 连接和它带来的工具会从本机配置里去掉，之后可以重新添加。",
+              confirmLabel: "删除连接",
+              danger: true,
+            }).then((ok) => {
+              if (ok) void hostApi.deleteMcp(server.id).then(onRefresh);
+            })
           }
         >
           <Trash size={13} />
           删除
         </button>
       </div>
+      {confirmLayer}
     </section>
   );
 }
+
+const RULE_KIND_LABEL: Record<string, string> = {
+  shell: "执行命令",
+  workspace_write: "写入工作区",
+  network: "网络访问",
+  browser: "浏览器操作",
+  destructive: "破坏性操作",
+  provider_cli: "运行 Provider CLI",
+  mcp: "MCP 工具调用",
+};
 
 function SecuritySettings() {
   const policyRules = useWorkbench((state) => state.policyRules);
   const deletePolicyRule = useWorkbench((state) => state.deletePolicyRule);
   return (
     <div className="settings-stack">
-      <section className="settings-section">
+      <section className="settings-section" data-settings-id="security-rules">
         <div className="settings-section-head">
           <div>
             <b>持久化允许规则</b>
@@ -694,15 +856,22 @@ function SecuritySettings() {
           </div>
         </div>
         {policyRules.map((rule) => (
-          <div className="policy-row" key={rule.id}>
-            <div>
-              <b>{rule.ruleType}</b>
-              <code>{rule.scopeKey}</code>
-            </div>
-            <span>{rule.effect}</span>
+          <div className="aui-rule" key={rule.id}>
+            <SpecSheet
+              title={RULE_KIND_LABEL[rule.ruleType] || rule.ruleType}
+              rows={[
+                { label: "范围", value: rule.scopeKey, emphasis: true },
+                {
+                  label: "效果",
+                  value:
+                    rule.effect === "allow" ? "允许" : rule.effect === "deny" ? "拒绝" : "询问",
+                },
+                { label: "写入", value: new Date(rule.createdAt).toLocaleDateString() },
+              ]}
+            />
             <button
               type="button"
-              className="icon-btn small"
+              className="aui-rule-del"
               title="撤销规则"
               onClick={() => void deletePolicyRule(rule.id)}
             >
@@ -711,7 +880,10 @@ function SecuritySettings() {
           </div>
         ))}
         {!policyRules.length && (
-          <div className="empty-hint">暂无持久化规则。审批时选择“始终允许”后会显示在这里。</div>
+          <PageEmpty
+            title="还没有持久化规则"
+            body="审批时选择「始终允许」，这条授权会记在这里，随时可以撤销。"
+          />
         )}
       </section>
     </div>
@@ -728,7 +900,7 @@ function UpdateSettings() {
     })),
   );
   return (
-    <section className="settings-section">
+    <section className="settings-section" data-settings-id="updates">
       <div className="settings-section-head">
         <div>
           <b>HerDock 更新</b>
@@ -736,9 +908,10 @@ function UpdateSettings() {
             {update?.channel || settings.updateChannel} · 当前 {update?.currentVersion || "—"}
           </span>
         </div>
-        <span className={`st ${update?.enabled ? "ready" : "limited"}`}>
-          {update?.enabled ? update.state : "未启用"}
-        </span>
+        <StatusPill
+          state={update?.enabled ? "working" : "waiting"}
+          label={update?.enabled ? update.state : "未启用"}
+        />
       </div>
       <p className="settings-copy">{update?.message || "正在读取此构建的更新配置。"}</p>
       {update?.availableVersion && (
@@ -788,37 +961,86 @@ function GeneralSettings() {
   const settings = useWorkbench((state) => state.settings);
   const providers = useWorkbench((state) => state.providers);
   const saveSettings = useWorkbench((state) => state.saveSettings);
+  const persistSettings = useWorkbench((state) => state.persistSettings);
+  const theme = useWorkbench((state) => state.theme);
+  const setTheme = useWorkbench((state) => state.setTheme);
   const [draft, setDraft] = useState(settings);
+  const [probeStatus, setProbeStatus] = useState("");
+  const [probes, setProbes] = useState<ProbeResult[] | null>(null);
   useEffect(() => setDraft(settings), [settings]);
+  const testProxy = async () => {
+    setProbeStatus("正在探测…");
+    try {
+      await persistSettings({ ...settings, httpProxy: draft.httpProxy ?? "" });
+      const results = await hostApi.probeNetwork();
+      setProbes(results);
+      const failed = results.filter((item) => item.status === "fail").length;
+      setProbeStatus(
+        failed === results.length && results.length
+          ? "探测全部失败。办公网可能需要 HTTP 代理。"
+          : "探测完成。401/403 表示网络路径正常。",
+      );
+    } catch (error) {
+      setProbeStatus(String(error));
+    }
+  };
   return (
     <section className="settings-section">
+      <div data-settings-id="theme">
+        <SegmentedField
+          label="外观"
+          value={theme}
+          onChange={(mode) => setTheme(mode as typeof theme)}
+          options={[
+            { value: "light", label: "浅色" },
+            { value: "dark", label: "深色" },
+            { value: "system", label: "跟随系统" },
+          ]}
+        />
+      </div>
+
+      <div className="aui-field" data-settings-id="default-provider">
+        <span className="mono">默认连接</span>
+        <ModelPickerList
+          selectedId={draft.defaultProvider}
+          onSelect={(id) => setDraft({ ...draft, defaultProvider: id })}
+          items={providers.map((provider) => ({
+            id: provider.id,
+            name: provider.displayName,
+            family: provider.available ? "已连接" : "未连接",
+            capabilities: provider.capabilities,
+            meta: provider.model,
+            muted: !provider.available,
+          }))}
+        />
+      </div>
+
+      <div data-settings-id="policy">
+        <SegmentedField
+          label="新工作区默认审批策略"
+          value={draft.autoExecute}
+          onChange={(autoExecute) => setDraft({ ...draft, autoExecute })}
+          options={[
+            { value: "ask_always", label: "每次询问" },
+            { value: "ask_risky", label: "风险操作" },
+            { value: "auto_workspace", label: "工作区内自动" },
+            { value: "auto_all", label: "全部自动" },
+          ]}
+        />
+      </div>
+
+      <SegmentedField
+        label="更新通道"
+        value={draft.updateChannel}
+        onChange={(updateChannel) => setDraft({ ...draft, updateChannel })}
+        options={[
+          { value: "stable", label: "Stable" },
+          { value: "preview", label: "Preview" },
+        ]}
+      />
+
       <div className="form-grid">
-        <label>
-          默认 Provider
-          <select
-            value={draft.defaultProvider}
-            onChange={(event) => setDraft({ ...draft, defaultProvider: event.target.value })}
-          >
-            {providers.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          审批策略
-          <select
-            value={draft.autoExecute}
-            onChange={(event) => setDraft({ ...draft, autoExecute: event.target.value })}
-          >
-            <option value="ask_always">每次询问</option>
-            <option value="ask_risky">变更与风险操作询问</option>
-            <option value="auto_workspace">工作区内自动</option>
-            <option value="auto_all">全部自动</option>
-          </select>
-        </label>
-        <label className="full">
+        <label className="full" data-settings-id="shell">
           终端 Shell
           <input
             value={draft.terminalShell}
@@ -826,7 +1048,7 @@ function GeneralSettings() {
             placeholder="留空使用系统默认 Shell"
           />
         </label>
-        <label className="full">
+        <label className="full" data-settings-id="shortcut">
           全局快捷键
           <input
             value={draft.launchShortcut}
@@ -834,25 +1056,41 @@ function GeneralSettings() {
             placeholder="CommandOrControl+Shift+Space"
           />
         </label>
-        <label>
-          更新通道
-          <select
-            value={draft.updateChannel}
-            onChange={(event) => setDraft({ ...draft, updateChannel: event.target.value })}
-          >
-            <option value="stable">Stable</option>
-            <option value="preview">Preview</option>
-          </select>
-        </label>
-        <label className="checkbox-row">
+        <label className="full" data-settings-id="proxy">
+          HTTP 代理
           <input
-            type="checkbox"
-            checked={draft.closeToTray}
-            onChange={(event) => setDraft({ ...draft, closeToTray: event.target.checked })}
+            value={draft.httpProxy ?? ""}
+            onChange={(event) => setDraft({ ...draft, httpProxy: event.target.value })}
+            placeholder="http://127.0.0.1:7890"
           />
-          关闭窗口后保留托盘运行
         </label>
       </div>
+      <p className="settings-copy">
+        用于应用内 API 连通测试与请求。CLI Provider 仍读取系统 HTTP_PROXY。401/403 视为可达。
+      </p>
+      <div className="settings-actions">
+        <span className="settings-status">{probeStatus}</span>
+        <button type="button" onClick={() => void testProxy()}>
+          测试连通
+        </button>
+      </div>
+      {probes?.map((probe) => (
+        <div className="doctor-probe" key={probe.url}>
+          <span className="mono">{probe.status}</span>
+          <code>{probe.url}</code>
+          <span>{probe.detail}</span>
+        </div>
+      ))}
+
+      <div data-settings-id="tray">
+        <ToggleRow
+          label="关闭窗口后保留托盘运行"
+          detail="后台运行继续推进，托盘图标可以把窗口叫回来"
+          on={draft.closeToTray}
+          onToggle={(closeToTray) => setDraft({ ...draft, closeToTray })}
+        />
+      </div>
+
       <div className="settings-actions">
         <button type="button" className="primary" onClick={() => void saveSettings(draft)}>
           <Check size={14} />

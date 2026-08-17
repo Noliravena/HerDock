@@ -78,8 +78,18 @@ export function IconPlus({ size = 13, className }: IconProps) {
 export function IconClose({ size = 10, className }: IconProps) {
   return <X {...defaults} size={size} className={className} />;
 }
-export function IconPanelRight({ size = 14, className }: IconProps) {
+export function IconPanelLeft({ size = 14, className }: IconProps) {
   return <SidebarSimple {...defaults} size={size} className={className} />;
+}
+export function IconPanelRight({ size = 14, className }: IconProps) {
+  return (
+    <SidebarSimple
+      {...defaults}
+      size={size}
+      className={className}
+      style={{ transform: "scaleX(-1)" }}
+    />
+  );
 }
 export function IconMore({ size = 13, className }: IconProps) {
   return <DotsThree {...defaults} size={size} className={className} weight="bold" />;

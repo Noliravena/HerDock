@@ -8,10 +8,20 @@ const workspace = {
   rootPath: "C:\\work\\herdock-retail",
   branch: "feature/order-audit",
   dirtySummary: "2 个文件",
+  autoExecute: null as string | null,
   createdAt: now,
   updatedAt: now,
 };
-const sessions = [
+const sessions: Array<{
+  id: string;
+  workspaceId: string;
+  title: string;
+  kind: string;
+  providerId: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}> = [
   {
     id: "sess_preview",
     workspaceId: workspace.id,
@@ -45,6 +55,7 @@ const run = {
   sessionId: sessions[0].id,
   workspaceId: workspace.id,
   providerId: "codex",
+  model: "gpt-5.4-codex",
   status: "waiting_approval",
   prompt: "分析门店销售数据，定位异常订单并生成修复计划。",
   planProgress: "2/3",
@@ -57,6 +68,7 @@ const designRun = {
   sessionId: sessions[0].id,
   workspaceId: workspace.id,
   providerId: "codex",
+  model: "gpt-5.4-codex",
   status: "waiting_approval",
   prompt: "为 HerDock 设计一套清晰、克制的一体化产品首页，并给出两个可比较方案。",
   planProgress: "3/4",
@@ -83,6 +95,22 @@ const designEvents = [
   },
 ];
 const events = [
+  {
+    id: "evt_0a",
+    runId: run.id,
+    type: "message.user",
+    ts: "2026-08-15T18:40:00+08:00",
+    seq: -2,
+    text: "先把上个月的异常订单跑一遍基线报告，我晚点回来看。",
+  },
+  {
+    id: "evt_0b",
+    runId: run.id,
+    type: "message.assistant",
+    ts: "2026-08-15T18:42:00+08:00",
+    seq: -1,
+    text: "基线报告已生成到 `out/baseline-aug.csv`，共 214 单命中校验规则，其中 3 单需要人工确认。\n\n抽样复核结论如下：金额偏差集中在满减叠加区间，门店状态切换存在 2 小时窗口期，历史回放脚本已覆盖 92% 的场景。以下明细按门店分组，供后续对照：\n\n- 上海静安：12 单偏差超过 10%，其中 3 单同时触发状态校验\n- 杭州滨江：7 单偏差为负向，疑似重复满减\n- 深圳南山：4 单正向偏差，属正常促销口径\n\n基线口径与上月一致，未引入新的校验规则变更，回放产物位于 `out/replay-aug/`。",
+  },
   { id: "evt_1", runId: run.id, type: "message.user", ts: now, seq: 1, text: run.prompt },
   {
     id: "evt_2",
@@ -103,6 +131,59 @@ const events = [
     ts: now,
     seq: 3,
     text: "已完成数据口径核对。3 条订单同时触发金额与门店状态校验，下面是本地验证结果。",
+  },
+  {
+    id: "evt_3b",
+    runId: run.id,
+    type: "message.assistant",
+    ts: now,
+    seq: 13,
+    text: [
+      "### 修复方案",
+      "",
+      "异常集中在金额校验规则 `validateOrderTotal`，建议分三步处理：",
+      "",
+      "1. 把门店状态并入校验上下文",
+      "2. 对历史订单回放新规则",
+      "3. 生成对比报告确认无回归",
+      "",
+      "核心改动如下：",
+      "",
+      "```ts",
+      "export function validateOrderTotal(order: Order, ctx: AuditContext) {",
+      "  const expected = order.lines.reduce((sum, l) => sum + l.price * l.qty, 0);",
+      "  if (Math.abs(order.total - expected) > ctx.tolerance) {",
+      '    return { ok: false, reason: "total-mismatch" };',
+      "  }",
+      "  return { ok: true };",
+      "}",
+      "```",
+      "",
+      "> 注意：回放会写入 `out/replay.csv`，执行前请确认磁盘空间充足。",
+    ]
+      .join("\n")
+      .replace(/^/, "\n\n"),
+  },
+  {
+    id: "evt_tool_1",
+    runId: run.id,
+    type: "tool.requested",
+    ts: now,
+    seq: 14,
+    toolCallId: "call_grep_1",
+    name: "grep",
+    arguments: { pattern: "validateOrderTotal", path: "src/rules" },
+  },
+  {
+    id: "evt_tool_2",
+    runId: run.id,
+    type: "tool.output",
+    ts: now,
+    seq: 15,
+    toolCallId: "call_grep_1",
+    output:
+      "src/rules/order-audit.ts:42: export function validateOrderTotal(order: Order) {\nsrc/rules/order-audit.ts:88:   if (!validateOrderTotal(order)) throw new AuditError(order.id);",
+    failed: false,
   },
   {
     id: "evt_4",
@@ -165,6 +246,16 @@ const events = [
     snapshotRef: "local://CP-38A2",
   },
   {
+    id: "evt_9b",
+    runId: run.id,
+    type: "checkpoint.created",
+    ts: now,
+    seq: 16,
+    checkpointId: "CP-40C1",
+    label: "生成报表前",
+    snapshotRef: "local://CP-40C1",
+  },
+  {
     id: "evt_10",
     runId: run.id,
     type: "table.result",
@@ -195,6 +286,15 @@ const events = [
       { id: "review", label: "先查看差异" },
     ],
   },
+  {
+    id: "evt_12",
+    runId: run.id,
+    type: "error",
+    ts: now,
+    seq: 17,
+    message: "调用上游接口超时（60s），本次运行已中断，可重试恢复。",
+    retriable: true,
+  },
 ];
 const providers = [
   {
@@ -205,6 +305,7 @@ const providers = [
     path: "codex.exe",
     version: "codex 1.0",
     auth: "cli",
+    model: "gpt-5.4-codex",
     capabilities: ["chat", "workspace", "stream"],
   },
   {
@@ -215,6 +316,7 @@ const providers = [
     path: "claude.exe",
     version: "claude 1.0",
     auth: "cli",
+    model: "claude-sonnet-4-6",
     capabilities: ["chat", "workspace", "stream"],
   },
   {
@@ -225,6 +327,7 @@ const providers = [
     path: "C:\\Users\\developer\\.grok\\bin\\grok.exe",
     version: "grok 1.0.0",
     auth: "oauth",
+    model: "grok-4",
     detail: "已登录 developer@example.com",
     capabilities: ["chat", "workspace", "stream", "usage"],
   },
@@ -239,6 +342,12 @@ const providers = [
     capabilities: ["chat", "tools", "usage"],
   },
 ];
+const PREVIEW_CANDIDATE_MODELS: Record<string, string[]> = {
+  codex: ["gpt-5.4-codex", "gpt-5.4", "gpt-5.4-mini"],
+  claude: ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-6"],
+  grok: ["grok-4", "grok-4-fast", "grok-code-fast-1"],
+  openai: ["gpt-5.4", "gpt-5.4-mini"],
+};
 const profiles = providers.map((provider) => ({
   id: provider.id,
   providerType: provider.providerType,
@@ -248,7 +357,7 @@ const profiles = providers.map((provider) => ({
   executable: provider.path,
   credentialRef: provider.providerType === "cli" ? undefined : `provider:${provider.id}`,
   enabled: true,
-  config: { candidateModels: provider.id === "openai" ? ["gpt-5.4", "gpt-5.4-mini"] : [] },
+  config: { candidateModels: PREVIEW_CANDIDATE_MODELS[provider.id] || [] },
 }));
 const tree = [
   {
@@ -343,15 +452,83 @@ export function installDesignPreview() {
         case "settings_get":
           return {
             defaultProvider: "codex",
-            defaultModel: "",
+            defaultModel: "gpt-5.4-codex",
             autoExecute: "ask_risky",
             terminalShell: "",
             closeToTray: true,
             launchShortcut: "CommandOrControl+Shift+Space",
             updateChannel: "stable",
+            httpProxy: "",
+            setupComplete: true,
           };
         case "settings_save":
           return args.settings;
+        case "doctor_run":
+          return {
+            generatedAt: now,
+            checks: [
+              {
+                id: "data_dir",
+                title: "数据目录",
+                status: "ok",
+                detail: "C:\\Users\\developer\\AppData\\Roaming\\HerDock",
+              },
+              {
+                id: "proxy",
+                title: "HTTP 代理",
+                status: "warn",
+                detail: "未配置。办公网访问公网 API 时可能需要在设置里填写 HTTP 代理。",
+              },
+              { id: "workspace", title: "工作区", status: "ok", detail: "已记录 1 个工作区" },
+              { id: "providers", title: "Provider", status: "ok", detail: "3 个可用 / 4 个已启用" },
+              { id: "network", title: "网络连通", status: "ok", detail: "已探测 3 个地址" },
+            ],
+            probes: [
+              {
+                url: "https://api.x.ai",
+                status: "ok",
+                detail: "可达（未授权，网络路径正常）",
+                statusCode: 401,
+                elapsedMs: 128,
+              },
+              {
+                url: "https://api.openai.com",
+                status: "ok",
+                detail: "可达（未授权，网络路径正常）",
+                statusCode: 401,
+                elapsedMs: 142,
+              },
+              {
+                url: "https://api.anthropic.com",
+                status: "ok",
+                detail: "可达（未授权，网络路径正常）",
+                statusCode: 401,
+                elapsedMs: 119,
+              },
+            ],
+          };
+        case "network_probe":
+          return [
+            {
+              url: "https://api.x.ai",
+              status: "ok",
+              detail: "可达（未授权，网络路径正常）",
+              statusCode: 401,
+              elapsedMs: 128,
+            },
+            {
+              url: "https://api.openai.com",
+              status: "ok",
+              detail: "可达（未授权，网络路径正常）",
+              statusCode: 401,
+              elapsedMs: 142,
+            },
+          ];
+        case "doctor_export":
+          return (
+            (typeof args.destPath === "string" && args.destPath) ||
+            "C:\\Users\\developer\\AppData\\Roaming\\HerDock\\diagnostics\\herdock-doctor.zip"
+          );
         case "provider_list":
           return providers;
         case "provider_profiles":
@@ -451,10 +628,62 @@ export function installDesignPreview() {
           return [workspace];
         case "workspace_open":
           return workspace;
+        case "workspace_set_auto_execute":
+          workspace.autoExecute = (args.autoExecute as string | null | undefined) ?? null;
+          return { ...workspace };
         case "workspace_tree":
           return tree;
         case "session_list":
           return sessions;
+        case "session_rename": {
+          const target = sessions.find((item) => item.id === args.id) || sessions[0];
+          target.title = String(args.title || target.title);
+          return { ...target };
+        }
+        case "session_delete": {
+          const index = sessions.findIndex((item) => item.id === args.id);
+          if (index >= 0) sessions.splice(index, 1);
+          return null;
+        }
+        case "session_archive": {
+          const target = sessions.find((item) => item.id === args.id);
+          if (target) target.archivedAt = now;
+          return target ? { ...target } : null;
+        }
+        case "session_unarchive": {
+          const target = sessions.find((item) => item.id === args.id);
+          if (target) target.archivedAt = undefined;
+          return target ? { ...target } : null;
+        }
+        case "session_create": {
+          const created = {
+            id: `sess_${Date.now()}`,
+            workspaceId: String(args.workspaceId || workspace.id),
+            title: String(args.title || "新会话"),
+            kind: String(args.kind || "mixed"),
+            providerId: String(args.providerId || "codex"),
+            createdAt: now,
+            updatedAt: now,
+          };
+          sessions.unshift(created);
+          return created;
+        }
+        case "session_fork": {
+          const source = sessions.find((item) => item.id === args.id) || sessions[0];
+          const created = {
+            ...source,
+            id: `sess_fork_${Date.now()}`,
+            title: `${source.title} · 分叉`,
+            createdAt: now,
+            updatedAt: now,
+            archivedAt: undefined,
+          };
+          sessions.unshift(created);
+          return created;
+        }
+        case "file_reveal":
+        case "workspace_reveal":
+          return null;
         case "run_recent":
           return [designRun, run];
         case "run_list":
@@ -627,6 +856,26 @@ export function installDesignPreview() {
             sha256: `preview_${index}`,
             createdAt: now,
           }));
+        case "context_import_bytes": {
+          const request = args.request as {
+            fileName: string;
+            mimeType: string;
+            bytesBase64: string;
+          };
+          return [
+            {
+              id: "ctx_import_bytes",
+              workspaceId: workspace.id,
+              sourceKind: "imported",
+              displayName: request.fileName,
+              storedPath: `preview/${request.fileName}`,
+              mimeType: request.mimeType,
+              sizeBytes: Math.floor((request.bytesBase64.length * 3) / 4),
+              sha256: "preview_bytes",
+              createdAt: now,
+            },
+          ];
+        }
         case "context_remove":
           return null;
         case "usage_get":
@@ -776,8 +1025,83 @@ export function installDesignPreview() {
           ];
         case "git_diff":
           return "diff --git a/src/rules/order-audit.ts b/src/rules/order-audit.ts\n+  return delta > 0.08;\n";
-        case "session_create":
-          return sessions[0];
+        case "file_preview": {
+          const path = String(args.path || "");
+          const ext = path.split(".").pop()?.toLowerCase() || "";
+          if (ext === "pdf") {
+            return {
+              path,
+              kind: "pdf",
+              mime: "application/pdf",
+              bytesBase64: null,
+              tooLarge: false,
+            };
+          }
+          if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext)) {
+            return {
+              path,
+              kind: "image",
+              mime: "image/png",
+              bytesBase64:
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+              tooLarge: false,
+            };
+          }
+          if (["docx", "xlsx", "pptx"].includes(ext)) {
+            return {
+              path,
+              kind: ext,
+              mime: "application/octet-stream",
+              text: "设计预览：从 Office 文档抽出的纯文本。",
+              tooLarge: false,
+            };
+          }
+          return { path, kind: "unsupported", mime: "application/octet-stream", tooLarge: false };
+        }
+        case "git_worktree_list":
+          return {
+            available: true,
+            items: [
+              {
+                path: workspace.rootPath,
+                branch: "feature/order-audit",
+                head: "8f2a1c4",
+                bare: false,
+                detached: false,
+                locked: false,
+                prunable: false,
+                isMain: true,
+                isCurrent: true,
+              },
+              {
+                path: "C:\\work\\herdock-retail-hotfix",
+                branch: "hotfix",
+                head: "1a9e22b",
+                bare: false,
+                detached: false,
+                locked: false,
+                prunable: false,
+                isMain: false,
+                isCurrent: false,
+              },
+            ],
+          };
+        case "git_worktree_add":
+          return {
+            path: `C:\\work\\herdock-retail-${String(args.name || "branch")}`,
+            branch: String(args.name || "branch"),
+            head: "8f2a1c4",
+            bare: false,
+            detached: false,
+            locked: false,
+            prunable: false,
+            isMain: false,
+            isCurrent: false,
+          };
+        case "git_worktree_remove":
+          return null;
+        case "git_worktree_prune":
+          return "Pruned 0 worktrees.";
         case "run_start":
           setTimeout(() => {
             for (const event of events.slice(0, 4)) void emit("run-event", event);

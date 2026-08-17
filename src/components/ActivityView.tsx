@@ -1,10 +1,195 @@
 import { useMemo, useState } from "react";
-import { MagnifyingGlass, Timer } from "@phosphor-icons/react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { RUN_STATUS_LABELS, type RunStatus } from "@her-dock/agent-protocol";
 import { useShallow } from "zustand/react/shallow";
-import type { Run } from "../host/client";
+import type { Run, Session, Workspace } from "../host/client";
+import { runDuration } from "../lib/runMetrics";
 import { useWorkbench } from "../store/workbench";
-import { IconKanban, IconRows } from "./Icons";
+import {
+  ConsoleShell,
+  ErrorBanner,
+  JobBar,
+  PageEmpty,
+  StatusPill,
+  useElapsedLabel,
+} from "./pageElements";
+
+export function ActivityView() {
+  const centerView = useWorkbench((state) => state.centerView);
+  if (centerView === "history") return <GrokHistory />;
+  return <GrokActivity />;
+}
+
+function sessionWhen(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 24 * 3600 * 1000;
+  const t = d.getTime();
+  if (t >= startOfToday)
+    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  if (t >= startOfYesterday) return "昨天";
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function sessionBucket(iso?: string): "today" | "yesterday" | "earlier" {
+  if (!iso) return "earlier";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "earlier";
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (t >= startOfToday) return "today";
+  if (t >= startOfToday - 24 * 3600 * 1000) return "yesterday";
+  return "earlier";
+}
+
+function runHint(status?: string): string {
+  if (!status) return "";
+  if (["queued", "starting", "running"].includes(status)) return "进行中";
+  if (["waiting_approval", "waiting_human", "paused"].includes(status)) return "待审批";
+  if (["failed", "cancelled", "interrupted"].includes(status)) return "失败";
+  return "";
+}
+
+function GrokHistory() {
+  const state = useWorkbench(
+    useShallow((s) => ({
+      allRuns: s.allRuns,
+      hostOnline: s.hostOnline,
+      newSession: s.newSession,
+      runs: s.runs,
+      selectSession: s.selectSession,
+      session: s.session,
+      sessions: s.sessions,
+      workspace: s.workspace,
+      workspaces: s.workspaces,
+      workspaceSessions: s.workspaceSessions,
+    })),
+  );
+  const [query, setQuery] = useState("");
+  const knownRuns = state.allRuns.length ? state.allRuns : state.runs;
+  const workspaces: Workspace[] = state.workspaces.length
+    ? state.workspaces
+    : state.workspace
+      ? [state.workspace]
+      : [];
+
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    const next: { session: Session; workspaceName: string; run?: Run }[] = [];
+    for (const workspace of workspaces) {
+      const list =
+        state.workspaceSessions[workspace.id] ||
+        (workspace.id === state.workspace?.id ? state.sessions : []);
+      for (const session of list) {
+        if (seen.has(session.id)) continue;
+        seen.add(session.id);
+        next.push({
+          session,
+          workspaceName: workspace.name,
+          run: knownRuns.find((item) => item.sessionId === session.id),
+        });
+      }
+    }
+    next.sort((a, b) => {
+      const ta = new Date(
+        a.run?.updatedAt || a.session.updatedAt || a.session.createdAt || "",
+      ).getTime();
+      const tb = new Date(
+        b.run?.updatedAt || b.session.updatedAt || b.session.createdAt || "",
+      ).getTime();
+      return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+    });
+    return next;
+  }, [knownRuns, state.sessions, state.workspace?.id, state.workspaceSessions, workspaces]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return items;
+    return items.filter(
+      (item) =>
+        item.session.title.toLowerCase().includes(needle) ||
+        item.workspaceName.toLowerCase().includes(needle),
+    );
+  }, [items, query]);
+
+  const groups = useMemo(() => {
+    const buckets: Record<string, typeof visible> = { today: [], yesterday: [], earlier: [] };
+    for (const item of visible) {
+      buckets[
+        sessionBucket(item.run?.updatedAt || item.session.updatedAt || item.session.createdAt)
+      ].push(item);
+    }
+    return [
+      { key: "today", label: "今天", rows: buckets.today },
+      { key: "yesterday", label: "昨天", rows: buckets.yesterday },
+      { key: "earlier", label: "更早", rows: buckets.earlier },
+    ].filter((group) => group.rows.length > 0);
+  }, [visible]);
+
+  const manyWorkspaces = workspaces.length > 1;
+  const searching = Boolean(query.trim());
+
+  return (
+    <ConsoleShell
+      title="历史"
+      hostOnline={state.hostOnline}
+      actions={
+        <label className="g-search">
+          <MagnifyingGlass size={14} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索对话"
+          />
+        </label>
+      }
+    >
+      {!groups.length && searching && (
+        <PageEmpty title="没有匹配的对话" body="换个标题或工作区名称再试一次。" />
+      )}
+      {!groups.length && !searching && (
+        <PageEmpty
+          title="还没有对话"
+          body="从一条消息开始。之后可以在这里按天找回会话。"
+          action={{ label: "新建会话", onClick: () => void state.newSession() }}
+        />
+      )}
+      {groups.map((group) => (
+        <section className="g-hist-group" key={group.key} data-slot="thread-list">
+          <h2 className="g-hist-sep">{group.label}</h2>
+          <div className="g-hist-list">
+            {group.rows.map((item) => {
+              const hint = runHint(item.run?.status);
+              return (
+                <button
+                  type="button"
+                  key={item.session.id}
+                  className={`g-hist-row ${state.session?.id === item.session.id ? "on" : ""}`}
+                  onClick={() => void state.selectSession(item.session.id)}
+                >
+                  <span className={`run-dot ${item.run?.status || "idle"}`} />
+                  <span className="g-hist-title">{item.session.title || "新会话"}</span>
+                  <span className="g-hist-meta">
+                    {manyWorkspaces && <em>{item.workspaceName}</em>}
+                    {hint && <i className={item.run?.status}>{hint}</i>}
+                    <time>
+                      {sessionWhen(
+                        item.run?.updatedAt || item.session.updatedAt || item.session.createdAt,
+                      )}
+                    </time>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </ConsoleShell>
+  );
+}
 
 type RunFilter = "all" | "active" | "failed" | "completed";
 
@@ -17,7 +202,6 @@ const FILTERS: { value: RunFilter; label: string }[] = [
 const ACTIVE_STATUSES = new Set(["queued", "starting", "running", "waiting_approval"]);
 const FAILED_STATUSES = new Set(["failed", "cancelled", "interrupted"]);
 
-/** Board columns, in the order the design lays them out. */
 const COLUMNS: { key: string; label: string; statuses: string[] }[] = [
   { key: "queued", label: "排队", statuses: ["queued"] },
   { key: "running", label: "执行中", statuses: ["running", "starting"] },
@@ -33,80 +217,47 @@ function matchesFilter(run: Run, filter: RunFilter): boolean {
   return true;
 }
 
-/** Group runs into 今天 / 昨天 / 更早 buckets like the activity feed in the design. */
-function groupRuns(runs: Run[]): { label: string; en: string; rows: Run[] }[] {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfYesterday = startOfToday - 24 * 3600 * 1000;
-  const buckets: Record<string, Run[]> = { today: [], yesterday: [], earlier: [] };
-  for (const r of runs) {
-    const t = new Date(r.updatedAt || r.createdAt || "").getTime();
-    if (Number.isNaN(t) || t >= startOfToday) buckets.today.push(r);
-    else if (t >= startOfYesterday) buckets.yesterday.push(r);
-    else buckets.earlier.push(r);
-  }
-  return [
-    { label: "今天", en: "TODAY", rows: buckets.today },
-    { label: "昨天", en: "YESTERDAY", rows: buckets.yesterday },
-    { label: "更早", en: "EARLIER", rows: buckets.earlier },
-  ].filter((g) => g.rows.length > 0);
+function pillOf(status: string): "working" | "waiting" | "done" | "failed" {
+  if (["queued", "starting", "running"].includes(status)) return "working";
+  if (["waiting_approval", "waiting_human", "paused"].includes(status)) return "waiting";
+  if (FAILED_STATUSES.has(status)) return "failed";
+  return "done";
 }
 
-function progressPct(run: Run): number {
-  const m = /^(\d+)\s*\/\s*(\d+)$/.exec(run.planProgress || "");
-  if (m) {
-    const done = Number(m[1]);
-    const total = Number(m[2]) || 1;
-    return Math.round((done / total) * 100);
-  }
-  return run.status === "completed" ? 100 : run.status === "failed" ? 20 : 50;
-}
-
-/** Wall-clock duration of a run, or how long it has been going. */
-function durationOf(run: Run): string {
-  const start = new Date(run.startedAt || run.createdAt || "").getTime();
-  const end = new Date(run.finishedAt || run.updatedAt || "").getTime();
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return "—";
-  const seconds = Math.round((end - start) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
-}
-
-export function ActivityView() {
-  const { activityLayout, allRuns, retryRun, run, runs, selectRun, setActivityLayout, workspaces } =
-    useWorkbench(
-      useShallow((state) => ({
-        activityLayout: state.activityLayout,
-        allRuns: state.allRuns,
-        retryRun: state.retryRun,
-        run: state.run,
-        runs: state.runs,
-        selectRun: state.selectRun,
-        setActivityLayout: state.setActivityLayout,
-        workspaces: state.workspaces,
-      })),
-    );
+function GrokActivity() {
+  const {
+    activityLayout,
+    allRuns,
+    hostOnline,
+    retryRun,
+    run,
+    runs,
+    selectRun,
+    setActivityLayout,
+    workspaces,
+  } = useWorkbench(
+    useShallow((state) => ({
+      activityLayout: state.activityLayout,
+      allRuns: state.allRuns,
+      hostOnline: state.hostOnline,
+      retryRun: state.retryRun,
+      run: state.run,
+      runs: state.runs,
+      selectRun: state.selectRun,
+      setActivityLayout: state.setActivityLayout,
+      workspaces: state.workspaces,
+    })),
+  );
   const [filter, setFilter] = useState<RunFilter>("all");
   const [query, setQuery] = useState("");
   const source = useMemo(
     () => (allRuns.length ? allRuns : runs.length ? runs : run ? [run] : []),
     [allRuns, run, runs],
   );
-  const counts = useMemo(() => {
-    const next: Record<RunFilter, number> = {
-      all: source.length,
-      active: 0,
-      failed: 0,
-      completed: 0,
-    };
-    for (const item of source) {
-      if (matchesFilter(item, "active")) next.active += 1;
-      if (matchesFilter(item, "failed")) next.failed += 1;
-      if (matchesFilter(item, "completed")) next.completed += 1;
-    }
-    return next;
-  }, [source]);
+  const workspaceNames = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace.name])),
+    [workspaces],
+  );
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return source.filter(
@@ -117,227 +268,168 @@ export function ActivityView() {
           item.prompt.toLowerCase().includes(needle)),
     );
   }, [filter, query, source]);
-  const groups = useMemo(() => groupRuns(visible), [visible]);
-  const workspaceNames = useMemo(
-    () => new Map(workspaces.map((workspace) => [workspace.id, workspace.name])),
-    [workspaces],
-  );
-  const todayTokens = useMemo(() => {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    return source.reduce((sum, item) => {
-      const t = new Date(item.updatedAt || item.createdAt || "").getTime();
-      if (Number.isNaN(t) || t < startOfToday.getTime()) return sum;
-      return sum + (item.tokenUsage?.total || 0);
-    }, 0);
-  }, [source]);
-  const stats = [
-    { label: "执行中", value: counts.active, tone: "running" },
-    {
-      label: "待审批",
-      value: source.filter((item) => item.status === "waiting_approval").length,
-      tone: "waiting_approval",
-    },
-    { label: "今日完成", value: counts.completed, tone: "completed" },
-    { label: "今日 tokens", value: todayTokens, tone: "idle" },
-  ];
-
-  const summaryOf = (r: Run) =>
-    r.errorMessage || `${workspaceNames.get(r.workspaceId) || r.workspaceId} · ${r.providerId}`;
+  const summaryOf = (item: Run) =>
+    `${workspaceNames.get(item.workspaceId) || item.workspaceId} · ${item.providerId}`;
+  const filtered = filter !== "all" || Boolean(query.trim());
 
   return (
-    <div className="activity">
-      <div className="activity-head">
-        <h1>活动</h1>
-        <div className="activity-stats">
-          {stats.map((stat) => (
-            <span className="activity-stat" key={stat.label}>
-              <span className={`run-dot ${stat.tone}`} />
-              <b>{stat.value}</b>
-              {stat.label}
-            </span>
-          ))}
-        </div>
-        <label className="activity-search">
-          <MagnifyingGlass size={12} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索 Run"
-          />
-        </label>
-        <div className="seg icon-seg" role="group" aria-label="活动视图">
-          <button
-            type="button"
-            title="列表"
-            aria-pressed={activityLayout === "list"}
-            className={activityLayout === "list" ? "active" : ""}
-            onClick={() => setActivityLayout("list")}
-          >
-            <IconRows />
-          </button>
-          <button
-            type="button"
-            title="看板"
-            aria-pressed={activityLayout === "board"}
-            className={activityLayout === "board" ? "active" : ""}
-            onClick={() => setActivityLayout("board")}
-          >
-            <IconKanban />
-          </button>
-        </div>
-      </div>
-
-      <div className="activity-toolbar" role="group" aria-label="运行状态筛选">
+    <ConsoleShell
+      title="活动"
+      hostOnline={hostOnline}
+      actions={
+        <>
+          <label className="g-search">
+            <MagnifyingGlass size={14} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索 Run"
+            />
+          </label>
+          <div className="g-tabs" role="group" aria-label="活动视图">
+            <button
+              type="button"
+              className={activityLayout === "list" ? "on" : ""}
+              onClick={() => setActivityLayout("list")}
+            >
+              列表
+            </button>
+            <button
+              type="button"
+              className={activityLayout === "board" ? "on" : ""}
+              onClick={() => setActivityLayout("board")}
+            >
+              看板
+            </button>
+          </div>
+        </>
+      }
+    >
+      <div className="g-tabs" role="group" aria-label="运行状态筛选">
         {FILTERS.map(({ value, label }) => (
           <button
             type="button"
-            className={filter === value ? "active" : ""}
+            className={filter === value ? "on" : ""}
             key={value}
             onClick={() => setFilter(value)}
           >
             {label}
-            <span>{counts[value]}</span>
           </button>
         ))}
-        <span className="activity-source mono">本地历史 · herdock-v1.db</span>
       </div>
-
-      {activityLayout === "list" && (
-        <div className="activity-scroll">
-          {!groups.length && <div className="empty-hint">此筛选条件下没有运行记录。</div>}
-          {groups.map((g) => (
-            <div key={g.en}>
-              <div className="act-group-head">
-                <span className="label">{g.label}</span>
-                <span className="en">{g.en}</span>
-                <div className="rule" />
-                <span className="meta">{g.rows.length} runs</span>
-              </div>
-              <div className="act-list">
-                {g.rows.map((r) => (
-                  <article key={r.id} className="act-card">
-                    <span className={`act-rail ${r.status}`} />
-                    <button type="button" className="act-body" onClick={() => void selectRun(r.id)}>
-                      <div className="act-top">
-                        <span className={`run-dot ${r.status}`} />
-                        <span className="act-id">{r.id}</span>
-                        <span className="act-title">{r.prompt || "未命名运行"}</span>
-                        <span className={`status-chip ${r.status}`}>
-                          {RUN_STATUS_LABELS[r.status as RunStatus] || r.status}
-                        </span>
-                        <span className="act-time">{timeOf(r.updatedAt || r.createdAt)}</span>
-                      </div>
-                      <div className="act-summary">{summaryOf(r)}</div>
-                      <div className="act-foot">
-                        <span className="bar">
-                          <i
-                            style={{
-                              width: `${progressPct(r)}%`,
-                              background: railColor(r.status),
-                            }}
-                          />
-                        </span>
-                        <span className="act-steps">{r.planProgress || "—"}</span>
-                        <span className="act-cost">
-                          {durationOf(r)} ·{" "}
-                          {r.tokenUsage?.total ? `${r.tokenUsage.total} tokens` : r.providerId}
-                        </span>
-                      </div>
-                    </button>
-                    {FAILED_STATUSES.has(r.status) && (
-                      <button
-                        type="button"
-                        className="act-retry"
-                        onClick={() => void retryRun(r.id)}
-                      >
-                        重试
-                      </button>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </div>
+      {!visible.length && (
+        <PageEmpty
+          title={filtered ? "没有匹配的运行" : "还没有运行记录"}
+          body={
+            filtered ? "当前筛选或搜索没有命中队列里的任务。" : "发送一条消息后，运行会出现在这里。"
+          }
+          action={
+            filtered
+              ? {
+                  label: "查看全部",
+                  onClick: () => {
+                    setFilter("all");
+                    setQuery("");
+                  },
+                }
+              : undefined
+          }
+        />
+      )}
+      {activityLayout === "list" && !!visible.length && (
+        <div className="aui-inbox" data-slot="background-inbox">
+          {visible.map((item) => (
+            <InboxCard
+              key={item.id}
+              item={item}
+              summary={summaryOf(item)}
+              onOpen={() => void selectRun(item.id)}
+              onRetry={() => void retryRun(item.id)}
+            />
           ))}
         </div>
       )}
-
-      {activityLayout === "board" && (
-        <div className="activity-board">
+      {activityLayout === "board" && !!visible.length && (
+        <div className="bui-board">
           {COLUMNS.map((column) => {
-            const cards = visible.filter((r) => column.statuses.includes(r.status));
+            const cards = visible.filter((item) => column.statuses.includes(item.status));
             return (
-              <section className="board-col" key={column.key}>
+              <section className="bui-board-col" key={column.key}>
                 <header>
-                  <span className={`board-dot ${column.statuses[0]}`} />
-                  <span className="board-label">{column.label}</span>
-                  <span className="board-count">{cards.length}</span>
+                  <span className={`bui-task-dot ${column.statuses[0]}`} />
+                  {column.label}
+                  <em>{cards.length}</em>
                 </header>
-                <div className="board-cards">
-                  {cards.map((r) => (
-                    <button
-                      type="button"
-                      className={`board-card ${r.status}`}
-                      key={r.id}
-                      onClick={() => void selectRun(r.id)}
-                    >
-                      <span className="board-card-top">
-                        <span className="mono id">{r.id}</span>
-                        <span className={`status-chip ${r.status}`}>
-                          {RUN_STATUS_LABELS[r.status as RunStatus] || r.status}
-                        </span>
-                        <span className="mono time">{timeOf(r.updatedAt || r.createdAt)}</span>
-                      </span>
-                      <span className="board-card-title">{r.prompt || "未命名运行"}</span>
-                      <span className="board-card-summary">{summaryOf(r)}</span>
-                      <span className="board-card-progress">
-                        <span className="bar">
-                          <i
-                            style={{
-                              width: `${progressPct(r)}%`,
-                              background: railColor(r.status),
-                            }}
-                          />
-                        </span>
-                        <span className="mono">{r.planProgress || "—"}</span>
-                      </span>
-                      <span className="board-card-foot">
-                        <span className="mono prov">{r.providerId}</span>
-                        <span className="mono dur">
-                          <Timer size={11} />
-                          {durationOf(r)}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                  {!cards.length && <div className="board-empty">暂无</div>}
-                </div>
+                {cards.map((item) => (
+                  <button
+                    type="button"
+                    className="bui-task"
+                    key={item.id}
+                    onClick={() => void selectRun(item.id)}
+                  >
+                    <span className="bui-task-copy">
+                      <strong>{item.prompt || "未命名运行"}</strong>
+                      <small>{summaryOf(item)}</small>
+                    </span>
+                    {column.key === "running" && item.planProgress && (
+                      <JobBar progress={item.planProgress} />
+                    )}
+                  </button>
+                ))}
+                {!cards.length && <p className="g-empty">暂无</p>}
               </section>
             );
           })}
         </div>
       )}
-    </div>
+    </ConsoleShell>
   );
 }
 
-function railColor(status: string): string {
-  switch (status) {
-    case "running":
-    case "starting":
-      return "var(--warn)";
-    case "waiting_human":
-    case "waiting_approval":
-    case "paused":
-      return "var(--accent)";
-    case "completed":
-      return "var(--ok)";
-    case "failed":
-    case "cancelled":
-      return "var(--danger)";
-    default:
-      return "var(--faint)";
-  }
+function InboxCard({
+  item,
+  summary,
+  onOpen,
+  onRetry,
+}: {
+  item: Run;
+  summary: string;
+  onOpen: () => void;
+  onRetry: () => void;
+}) {
+  const failed = FAILED_STATUSES.has(item.status);
+  const live = ACTIVE_STATUSES.has(item.status);
+  const elapsed = useElapsedLabel(live ? item.startedAt || item.createdAt : undefined);
+  const waited = live ? elapsed : runDuration(item);
+
+  return (
+    <article className="aui-inbox-card">
+      <button type="button" className="aui-inbox-main" onClick={onOpen}>
+        <span className="aui-inbox-copy">
+          <strong>{item.prompt || "未命名运行"}</strong>
+          <small>{summary}</small>
+          {item.status === "running" && item.planProgress && (
+            <JobBar progress={item.planProgress} />
+          )}
+        </span>
+        <span className="aui-inbox-meta">
+          <StatusPill
+            state={pillOf(item.status)}
+            label={RUN_STATUS_LABELS[item.status as RunStatus] || item.status}
+            elapsed={waited || undefined}
+          />
+          <time>{timeOf(item.updatedAt || item.createdAt)}</time>
+        </span>
+      </button>
+      {failed && (
+        <ErrorBanner
+          title="运行未完成"
+          detail={item.errorMessage || "运行失败或被中断。"}
+          onRetry={onRetry}
+        />
+      )}
+    </article>
+  );
 }
 
 function timeOf(ts?: string): string {

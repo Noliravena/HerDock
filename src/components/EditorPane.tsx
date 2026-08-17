@@ -13,10 +13,11 @@ export function EditorPane({
   onChange: (v: string) => void;
   readOnly?: boolean;
 }) {
-  const { centerView, dirty, saveFile, setCenterView } = useWorkbench(
+  const { centerView, dirty, resolvedTheme, saveFile, setCenterView } = useWorkbench(
     useShallow((state) => ({
       centerView: state.centerView,
       dirty: state.dirty,
+      resolvedTheme: state.resolvedTheme,
       saveFile: state.saveFile,
       setCenterView: state.setCenterView,
     })),
@@ -26,7 +27,7 @@ export function EditorPane({
     return (
       <div className="view">
         <div className="editor-empty">
-          从右侧文件树打开一个文件。人手改完保存，再点「采纳并继续」，磁盘内容优先。
+          从侧栏「文件」树打开一个文件。人手改完保存，再点「采纳并继续」，磁盘内容优先。
         </div>
       </div>
     );
@@ -76,7 +77,7 @@ export function EditorPane({
         <Editor
           height="100%"
           language={lang}
-          theme="vs"
+          theme={resolvedTheme === "light" ? "vs" : "vs-dark"}
           value={value}
           onChange={(v) => onChange(v ?? "")}
           options={{

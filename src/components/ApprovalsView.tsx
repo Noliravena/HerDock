@@ -1,29 +1,22 @@
 import { useEffect } from "react";
 import {
-  Check,
   CursorClick,
   FileText,
   Globe,
-  PencilSimple,
   Prohibit,
-  ShieldCheck,
   TerminalWindow,
   Trash,
-  X,
 } from "@phosphor-icons/react";
 import { useShallow } from "zustand/react/shallow";
-import type { Approval } from "../host/client";
 import { useWorkbench } from "../store/workbench";
+import { ApprovalCard, ConsoleShell, PageEmpty, SpecSheet } from "./pageElements";
 
 /** Approval scopes, mapped 1:1 onto decisions the Rust core actually honours. */
-const SCOPES: { id: string; label: string; desc: string }[] = [
-  { id: "approve_once", label: "仅本次", desc: "只放行这一次调用，下次同样动作仍会询问" },
-  { id: "allow_run", label: "本次运行内允许", desc: "当前 Run 结束前不再询问相同动作，重启后失效" },
-  {
-    id: "always_allow",
-    label: "永久允许该范围",
-    desc: "写入本地权限规则，可在下方「权限规则」里撤销",
-  },
+const SCOPES: { id: string; label: string; kind?: "primary" | "ghost" }[] = [
+  { id: "deny", label: "拒绝" },
+  { id: "allow_run", label: "本次运行内允许" },
+  { id: "always_allow", label: "永久允许" },
+  { id: "approve_once", label: "批准一次", kind: "primary" },
 ];
 
 const RISK_LABEL: Record<string, string> = { low: "低风险", medium: "需确认", high: "高风险" };
@@ -36,10 +29,6 @@ const KIND_LABEL: Record<string, string> = {
   provider_cli: "运行 Provider CLI",
   mcp: "MCP 工具调用",
 };
-
-function riskTone(risk: string): string {
-  return risk === "high" ? "high" : risk === "low" ? "low" : "medium";
-}
 
 function kindIcon(kind: string, size = 13) {
   switch (kind) {
@@ -57,7 +46,13 @@ function kindIcon(kind: string, size = 13) {
   }
 }
 
-/** "等 4m" — how long the agent has been parked on this request. */
+function addedOn(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 function waited(iso?: string): string {
   if (!iso) return "等待中";
   const started = new Date(iso).getTime();
@@ -69,254 +64,151 @@ function waited(iso?: string): string {
 }
 
 export function ApprovalsView() {
+  return <GrokApprovals />;
+}
+
+function GrokApprovals() {
   const state = useWorkbench(
     useShallow((s) => ({
       allRuns: s.allRuns,
       approvals: s.approvals,
-      approvalScope: s.approvalScope,
       approvalTab: s.approvalTab,
       deletePolicyRule: s.deletePolicyRule,
+      hostOnline: s.hostOnline,
       policyRules: s.policyRules,
       resolveApproval: s.resolveApproval,
       selectApproval: s.selectApproval,
-      selectedApprovalId: s.selectedApprovalId,
-      setApprovalScope: s.setApprovalScope,
-      setApprovalTab: s.setApprovalTab,
       selectRun: s.selectRun,
+      selectedApprovalId: s.selectedApprovalId,
+      setApprovalTab: s.setApprovalTab,
+      sessions: s.sessions,
+      workspaceSessions: s.workspaceSessions,
     })),
   );
-  const { approvals } = state;
-  const selected: Approval | undefined =
-    approvals.find((item) => item.approvalId === state.selectedApprovalId) || approvals[0];
+  const selected =
+    state.approvals.find((item) => item.approvalId === state.selectedApprovalId) ||
+    state.approvals[0];
 
-  // Keep the selection anchored when the queue changes underneath us.
   useEffect(() => {
     if (selected && selected.approvalId !== state.selectedApprovalId)
       state.selectApproval(selected.approvalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.approvalId]);
 
-  const runOf = (id: string) => state.allRuns.find((run) => run.id === id);
+  const sessionTitle = (runId: string) => {
+    const run = state.allRuns.find((item) => item.id === runId);
+    if (!run) return "";
+    const session =
+      Object.values(state.workspaceSessions)
+        .flat()
+        .find((item) => item.id === run.sessionId) ||
+      state.sessions.find((item) => item.id === run.sessionId);
+    return session?.title || "";
+  };
 
   return (
-    <div className="console-view approvals-view">
-      <header className="console-head">
-        <h1>审批中心</h1>
-        {approvals.length > 0 ? (
-          <span className="console-note">
-            <span className="pulse-dot" />
-            {approvals.length} 个请求等待你决定，Agent 已暂停
-          </span>
-        ) : (
-          <span className="console-note quiet">没有待处理的请求</span>
-        )}
-        <div className="seg" role="tablist">
+    <ConsoleShell
+      title="审批"
+      hostOnline={state.hostOnline}
+      actions={
+        <div className="g-tabs" role="tablist">
           <button
             type="button"
             role="tab"
-            aria-selected={state.approvalTab === "pending"}
-            className={state.approvalTab === "pending" ? "active" : ""}
+            className={state.approvalTab === "pending" ? "on" : ""}
             onClick={() => state.setApprovalTab("pending")}
           >
-            待审批
+            待处理{state.approvals.length ? ` ${state.approvals.length}` : ""}
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={state.approvalTab === "rules"}
-            className={state.approvalTab === "rules" ? "active" : ""}
+            className={state.approvalTab === "rules" ? "on" : ""}
             onClick={() => state.setApprovalTab("rules")}
           >
-            权限规则
+            规则
           </button>
         </div>
-      </header>
-
-      {state.approvalTab === "pending" && (
-        <div className="approvals-split">
-          <div className="approval-queue">
-            {approvals.map((item) => {
-              const run = runOf(item.runId);
-              return (
-                <button
-                  type="button"
-                  key={item.approvalId}
-                  className={`approval-card ${selected?.approvalId === item.approvalId ? "active" : ""}`}
-                  onClick={() => state.selectApproval(item.approvalId)}
-                >
-                  <span className="approval-card-top">
-                    <span className={`approval-icon ${riskTone(item.risk)}`}>
-                      {kindIcon(item.kind, 12)}
-                    </span>
-                    <span className="approval-action">{item.title}</span>
-                    <span className={`risk ${riskTone(item.risk)}`}>
-                      {RISK_LABEL[item.risk] || item.risk}
-                    </span>
-                  </span>
-                  <span className="approval-target">{item.scopeKey || item.detail}</span>
-                  <span className="approval-card-foot">
-                    <span className="run-id">{item.runId}</span>
-                    <span className="run-title">
-                      {run?.prompt || KIND_LABEL[item.kind] || item.kind}
-                    </span>
-                    <span className="wait">{waited(item.createdAt)}</span>
-                  </span>
-                </button>
-              );
-            })}
-            {!approvals.length && <div className="empty-hint">队列为空。</div>}
-            <div className="approval-hint">
-              <ShieldCheck size={14} />
-              <span>未处理的请求会让运行停在原地，直到你决定或取消它。</span>
-            </div>
-          </div>
-
-          {selected ? (
-            <div className="approval-detail">
-              <div className="detail-head">
-                <span className={`approval-icon lg ${riskTone(selected.risk)}`}>
-                  {kindIcon(selected.kind, 16)}
-                </span>
-                <div className="detail-title">
-                  <strong>{selected.title}</strong>
-                  <span>{selected.detail}</span>
-                </div>
-                <span className={`risk ${riskTone(selected.risk)}`}>
-                  {RISK_LABEL[selected.risk] || selected.risk}
-                </span>
-              </div>
-
-              <div className="kv-card">
-                <div className="kv-row">
-                  <span className="k">类别</span>
-                  <span className="v">{KIND_LABEL[selected.kind] || selected.kind}</span>
-                </div>
-                <div className="kv-row">
-                  <span className="k">范围</span>
-                  <span className="v">{selected.scopeKey || "—"}</span>
-                </div>
-                <div className="kv-row">
-                  <span className="k">发起</span>
-                  <span className="v">
-                    {selected.runId}
-                    {runOf(selected.runId)?.planProgress
-                      ? ` · 第 ${runOf(selected.runId)?.planProgress} 步`
-                      : ""}
-                  </span>
-                </div>
-                <div className="kv-row">
-                  <span className="k">Provider</span>
-                  <span className="v">{runOf(selected.runId)?.providerId || "—"}</span>
-                </div>
-              </div>
-
-              <div className="detail-section">
-                <span className="side-title">PAYLOAD</span>
-                <pre className="payload">
-                  {`# ${KIND_LABEL[selected.kind] || selected.kind}\n${selected.detail}\n${
-                    selected.scopeKey ? `scope: ${selected.scopeKey}` : ""
-                  }`.trim()}
-                </pre>
-              </div>
-
-              <div className="detail-section">
-                <span className="side-title">批准范围</span>
-                <div className="scope-list">
-                  {SCOPES.map((scope) => (
-                    <button
-                      type="button"
-                      key={scope.id}
-                      className={`scope-row ${state.approvalScope === scope.id ? "active" : ""}`}
-                      onClick={() => state.setApprovalScope(scope.id)}
-                    >
-                      <span className="radio">
-                        <i />
-                      </span>
-                      <span className="scope-text">
-                        <strong>{scope.label}</strong>
-                        <span>{scope.desc}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="detail-actions">
-                <button
-                  type="button"
-                  className="solid"
-                  onClick={() =>
-                    void state.resolveApproval(selected.approvalId, state.approvalScope)
-                  }
-                >
-                  <Check size={13} />
-                  批准并继续
-                </button>
-                <button
-                  type="button"
-                  className="ghost-btn danger"
-                  onClick={() => void state.resolveApproval(selected.approvalId, "deny")}
-                >
-                  <X size={13} />
-                  拒绝
-                </button>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={() => void state.selectRun(selected.runId)}
-                >
-                  <PencilSimple size={13} />
-                  查看运行
-                </button>
-              </div>
-              <p className="detail-foot">
-                执行命令与写入工作区前，HerDock 会先写一次检查点，批准后仍可回滚。
-              </p>
-            </div>
-          ) : (
-            <div className="approval-detail empty">
-              <div className="empty-hint">风险动作会在这里等待你确认，队列现在是空的。</div>
-            </div>
-          )}
-        </div>
+      }
+    >
+      {state.approvalTab === "pending" && !state.approvals.length && (
+        <PageEmpty title="没有需要确认的动作" body="Agent 可以继续跑，新的权限请求会出现在这里。" />
       )}
-
-      {state.approvalTab === "rules" && (
-        <div className="console-scroll">
-          <div className="rule-list">
-            {state.policyRules.map((rule) => (
-              <div className="rule-card" key={rule.id}>
-                <span className={`approval-icon ${rule.effect === "allow" ? "low" : "medium"}`}>
-                  {kindIcon(rule.ruleType, 14)}
-                </span>
-                <span className="rule-text">
-                  <strong>{KIND_LABEL[rule.ruleType] || rule.ruleType}</strong>
-                  <span className="mono">{rule.scopeKey}</span>
-                </span>
-                <span className={`mode ${rule.effect}`}>
-                  {rule.effect === "allow" ? "允许" : rule.effect === "deny" ? "拒绝" : "询问"}
-                </span>
+      {state.approvalTab === "pending" &&
+        state.approvals.map((item) => {
+          const open = selected?.approvalId === item.approvalId;
+          const command = [
+            `# ${KIND_LABEL[item.kind] || item.kind}`,
+            item.detail,
+            item.scopeKey ? `scope: ${item.scopeKey}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n");
+          return (
+            <ApprovalCard
+              key={item.approvalId}
+              icon={kindIcon(item.kind, 16)}
+              title={item.title}
+              subtitle={[
+                RISK_LABEL[item.risk] || item.risk,
+                sessionTitle(item.runId),
+                waited(item.createdAt),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              command={command}
+              selected={open}
+              onSelect={() => state.selectApproval(item.approvalId)}
+            >
+              {SCOPES.map((scope) => (
                 <button
                   type="button"
-                  className="icon-btn small"
-                  title="删除规则"
-                  onClick={() => void state.deletePolicyRule(rule.id)}
+                  key={scope.id}
+                  className={scope.kind === "primary" ? "primary" : ""}
+                  onClick={() => void state.resolveApproval(item.approvalId, scope.id)}
                 >
-                  <Trash size={14} />
+                  {scope.label}
                 </button>
-              </div>
-            ))}
-            {!state.policyRules.length && (
-              <div className="empty-hint">
-                还没有持久化的允许规则。选择「永久允许该范围」批准一次动作后会出现在这里。
-              </div>
-            )}
-            <p className="console-foot">
-              规则保存在本地数据库中，只做精确范围匹配。删除后相关动作会重新回到审批队列。
-            </p>
-          </div>
-        </div>
+              ))}
+              <button type="button" onClick={() => void state.selectRun(item.runId)}>
+                查看运行
+              </button>
+            </ApprovalCard>
+          );
+        })}
+
+      {state.approvalTab === "rules" && !state.policyRules.length && (
+        <PageEmpty
+          title="还没有长期规则"
+          body="批准时选「永久允许」就会出现在这里，之后可以逐条撤销。"
+        />
       )}
-    </div>
+      {state.approvalTab === "rules" &&
+        state.policyRules.map((rule) => (
+          <div className="aui-rule" key={rule.id}>
+            <SpecSheet
+              title={KIND_LABEL[rule.ruleType] || rule.ruleType}
+              subtitle={rule.scopeKey}
+              rows={[
+                { label: "范围", value: rule.scopeKey, emphasis: true },
+                { label: "写入日", value: addedOn(rule.createdAt) },
+                {
+                  label: "效果",
+                  value:
+                    rule.effect === "allow" ? "允许" : rule.effect === "deny" ? "拒绝" : "询问",
+                },
+              ]}
+            />
+            <button
+              type="button"
+              className="aui-rule-del"
+              title="撤销规则"
+              onClick={() => void state.deletePolicyRule(rule.id)}
+            >
+              <Trash size={14} />
+            </button>
+          </div>
+        ))}
+    </ConsoleShell>
   );
 }

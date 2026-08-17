@@ -1,8 +1,10 @@
-import { DownloadSimple, FolderOpen } from "@phosphor-icons/react";
+import { useMemo, useState } from "react";
+import { DownloadSimple, FolderOpen, MagnifyingGlass } from "@phosphor-icons/react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useShallow } from "zustand/react/shallow";
-import { hostApi } from "../host/client";
+import { hostApi, type Artifact } from "../host/client";
 import { useWorkbench } from "../store/workbench";
+import { ArtifactCard, ConsoleShell, PageEmpty } from "./pageElements";
 
 function formatBytes(n?: number): string {
   if (!n) return "—";
@@ -30,15 +32,37 @@ function formatWhen(iso?: string): string {
       });
 }
 
+function isDesignArtifact(artifact: Artifact): boolean {
+  return (
+    artifact.path.startsWith("out/design/") &&
+    ["html", "deck-html"].includes(artifact.renderer || "")
+  );
+}
+
 export function ArtifactsView() {
+  return <GrokArtifacts />;
+}
+
+function GrokArtifacts() {
   const state = useWorkbench(
     useShallow((s) => ({
       artifacts: s.artifacts,
+      hostOnline: s.hostOnline,
+      openDesignArtifact: s.openDesignArtifact,
       openPath: s.openPath,
       selectRun: s.selectRun,
       workspace: s.workspace,
     })),
   );
+  const [query, setQuery] = useState("");
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return state.artifacts;
+    return state.artifacts.filter(
+      (item) =>
+        item.name.toLowerCase().includes(needle) || item.path.toLowerCase().includes(needle),
+    );
+  }, [query, state.artifacts]);
 
   const exportArtifact = async (path: string, name: string) => {
     if (!state.workspace) return;
@@ -46,81 +70,85 @@ export function ArtifactsView() {
     if (destination) await hostApi.exportArtifact(state.workspace.id, path, destination);
   };
 
-  return (
-    <div className="console-view">
-      <header className="console-head stacked">
-        <span className="console-eyebrow">OUT/ · LOCAL ARTIFACTS</span>
-        <h1>产物库</h1>
-        <span className="console-meta mono">{state.workspace?.rootPath || "未打开工作区"}</span>
-      </header>
+  const openArtifact = (artifact: Artifact) => {
+    if (isDesignArtifact(artifact)) {
+      void state.openDesignArtifact(artifact.id);
+      return;
+    }
+    void state.openPath(artifact.path);
+  };
 
-      <div className="console-scroll">
-        <div className="artifact-table">
-          <div className="artifact-row head">
-            <span>NAME</span>
-            <span>RUN</span>
-            <span>SIZE</span>
-            <span>CREATED</span>
-            <span />
+  const searching = Boolean(query.trim());
+
+  return (
+    <ConsoleShell
+      title="产物"
+      hostOnline={state.hostOnline}
+      actions={
+        <label className="g-search">
+          <MagnifyingGlass size={14} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索文件"
+          />
+        </label>
+      }
+    >
+      {!visible.length && searching && (
+        <PageEmpty title="没有匹配的文件" body="换个文件名或路径再试一次。" />
+      )}
+      {!visible.length && !searching && (
+        <PageEmpty title="还没有产物" body="运行完成后，生成的文件会出现在这里。" />
+      )}
+      {visible.map((artifact) => {
+        const generating = artifact.status === "streaming";
+        const meta = [
+          (artifact.ext || "file").toUpperCase(),
+          formatBytes(artifact.sizeBytes),
+          formatWhen(artifact.createdAt),
+          artifact.path,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <div className="aui-artifact-row" key={artifact.id}>
+            <ArtifactCard
+              title={artifact.name}
+              meta={meta}
+              generating={generating}
+              onClick={() => openArtifact(artifact)}
+            />
+            {artifact.runId && (
+              <button
+                type="button"
+                className="g-text-btn"
+                onClick={() => void state.selectRun(artifact.runId!)}
+              >
+                查看运行
+              </button>
+            )}
+            <button
+              type="button"
+              className="g-icon-btn"
+              title="在文件夹中定位"
+              onClick={() =>
+                state.workspace && void hostApi.revealArtifact(state.workspace.id, artifact.path)
+              }
+            >
+              <FolderOpen size={14} />
+            </button>
+            <button
+              type="button"
+              className="g-icon-btn"
+              title="导出副本"
+              onClick={() => void exportArtifact(artifact.path, artifact.name)}
+            >
+              <DownloadSimple size={14} />
+            </button>
           </div>
-          {state.artifacts.map((artifact) => (
-            <div className="artifact-row" key={artifact.id}>
-              <span className="artifact-name">
-                <span className={`ext ${artifact.ext}`}>
-                  {(artifact.ext || "·").slice(0, 4).toUpperCase()}
-                </span>
-                <button
-                  type="button"
-                  className="name"
-                  onClick={() => void state.openPath(artifact.path)}
-                >
-                  <b>{artifact.name}</b>
-                  <small className="mono">{artifact.path}</small>
-                </button>
-              </span>
-              <span className="mono artifact-run">
-                {artifact.runId ? (
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => void state.selectRun(artifact.runId!)}
-                  >
-                    {artifact.runId}
-                  </button>
-                ) : (
-                  "—"
-                )}
-              </span>
-              <span className="mono artifact-size">{formatBytes(artifact.sizeBytes)}</span>
-              <span className="mono artifact-time">{formatWhen(artifact.createdAt)}</span>
-              <span className="artifact-actions">
-                <button
-                  type="button"
-                  className="icon-btn small"
-                  title="在文件夹中定位"
-                  onClick={() =>
-                    state.workspace &&
-                    void hostApi.revealArtifact(state.workspace.id, artifact.path)
-                  }
-                >
-                  <FolderOpen size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn small"
-                  title="导出副本"
-                  onClick={() => void exportArtifact(artifact.path, artifact.name)}
-                >
-                  <DownloadSimple size={14} />
-                </button>
-              </span>
-            </div>
-          ))}
-          {!state.artifacts.length && (
-            <div className="empty-hint">out/ 目录还是空的，Agent 产出的文件会列在这里。</div>
-          )}
-        </div>
-      </div>
-    </div>
+        );
+      })}
+    </ConsoleShell>
   );
 }

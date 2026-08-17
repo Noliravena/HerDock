@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { Plus, TerminalWindow, X } from "@phosphor-icons/react";
+import { ArrowClockwise, Check, Plus, TerminalWindow, X } from "@phosphor-icons/react";
 import { hostApi, type TerminalEvent } from "../host/client";
-import { useWorkbench } from "../store/workbench";
+import { useWorkbench, type ResolvedTheme } from "../store/workbench";
+import { PageEmpty } from "./pageElements";
 
 type Session = { id: string; title: string };
 
@@ -74,6 +75,7 @@ export function TerminalPane() {
 function TerminalSession({ visible }: { visible: boolean }) {
   const workspace = useWorkbench((state) => state.workspace);
   const shell = useWorkbench((state) => state.settings.terminalShell);
+  const resolvedTheme = useWorkbench((state) => state.resolvedTheme);
   const setError = (message: string) => useWorkbench.setState({ error: message });
   const containerRef = useRef<HTMLDivElement>(null);
   const remoteId = useRef<string | null>(null);
@@ -81,12 +83,16 @@ function TerminalSession({ visible }: { visible: boolean }) {
   const fitRef = useRef<FitAddon | null>(null);
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
+  // assistant-ui terminal-block: the header owns the command and the exit status.
+  const [exitCode, setExitCode] = useState<number | null>(null);
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !workspace) return;
     let disposed = false;
-    const terminal = createTerminal();
+    setExitCode(null);
+    const terminal = createTerminal(resolvedTheme);
     const fit = new FitAddon();
     terminalRef.current = terminal;
     fitRef.current = fit;
@@ -96,7 +102,7 @@ function TerminalSession({ visible }: { visible: boolean }) {
     const channel = new Channel<TerminalEvent>();
     channel.onmessage = (event) => {
       if (event.eventType === "output") terminal.write(event.data);
-      if (event.eventType === "exit") terminal.writeln("\r\n[进程已结束]");
+      if (event.eventType === "exit") setExitCode(event.exitCode ?? 0);
     };
     void hostApi
       .openTerminal(workspace.id, shell || undefined, terminal.cols, terminal.rows, channel)
@@ -127,7 +133,13 @@ function TerminalSession({ visible }: { visible: boolean }) {
       fitRef.current = null;
       terminal.dispose();
     };
-  }, [shell, workspace?.id]);
+  }, [shell, workspace?.id, generation]);
+
+  // Repaint in place rather than dropping the shell when the app theme flips.
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (terminal) terminal.options.theme = terminalTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   useEffect(() => {
     if (!visible) return;
@@ -146,29 +158,74 @@ function TerminalSession({ visible }: { visible: boolean }) {
   if (!workspace)
     return (
       <div className={`terminal-session ${visible ? "visible" : ""}`}>
-        <div className="empty-hint">打开工作区后可启动本地终端。</div>
+        <PageEmpty
+          title="还没有打开工作区"
+          body="本地终端跟随工作区目录启动。打开一个文件夹后，这里会给出该目录下的 Shell。"
+        />
       </div>
     );
-  return <div ref={containerRef} className={`terminal-session ${visible ? "visible" : ""}`} />;
+
+  return (
+    <div className={`terminal-session ${visible ? "visible" : ""}`}>
+      <div className="aui-term-head" data-slot="terminal-block">
+        <span className="mono">{shell || "系统默认 Shell"}</span>
+        {exitCode === null ? (
+          <span className="aui-term-live">
+            <i className="run-dot running" />
+            运行中
+          </span>
+        ) : (
+          <>
+            <span className={`aui-term-exit${exitCode === 0 ? " ok" : " bad"}`}>
+              {exitCode === 0 && <Check size={11} weight="bold" />}
+              <em className="mono">exit {exitCode}</em>
+            </span>
+            <button type="button" onClick={() => setGeneration((n) => n + 1)}>
+              <ArrowClockwise size={11} />
+              重新启动
+            </button>
+          </>
+        )}
+      </div>
+      <div ref={containerRef} className="terminal-surface" />
+    </div>
+  );
 }
 
-function createTerminal(): Terminal {
+function terminalTheme(resolved: ResolvedTheme): ITheme {
+  if (resolved === "dark") {
+    return {
+      background: "#161614",
+      foreground: "#e7e5e0",
+      cursor: "#e7e5e0",
+      selectionBackground: "#3a4257",
+      black: "#161614",
+      green: "#8fbd7a",
+      yellow: "#d9b061",
+      red: "#e0857a",
+      blue: "#8aa4e8",
+    };
+  }
+  return {
+    background: "#fbfaf8",
+    foreground: "#292824",
+    cursor: "#292824",
+    selectionBackground: "#d9e1f2",
+    black: "#292824",
+    green: "#5f7d51",
+    yellow: "#a97921",
+    red: "#a7473b",
+    blue: "#4865a8",
+  };
+}
+
+function createTerminal(resolved: ResolvedTheme): Terminal {
   return new Terminal({
     cursorBlink: true,
     convertEol: true,
     fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
     fontSize: 13,
     lineHeight: 1.35,
-    theme: {
-      background: "#fbfaf8",
-      foreground: "#292824",
-      cursor: "#292824",
-      selectionBackground: "#d9e1f2",
-      black: "#292824",
-      green: "#5f7d51",
-      yellow: "#a97921",
-      red: "#a7473b",
-      blue: "#4865a8",
-    },
+    theme: terminalTheme(resolved),
   });
 }
