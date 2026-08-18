@@ -21,22 +21,35 @@ pub async fn workspace_list(state: State<'_, AppState>) -> CommandResult<Vec<Wor
     state.db.lock().await.list_workspaces().map_err(err)
 }
 
-#[tauri::command]
-pub async fn workspace_open(path: String, state: State<'_, AppState>) -> CommandResult<Workspace> {
-    let root = workspace::canonical_workspace(&path).map_err(err)?;
+const DEFAULT_WORKSPACE_NAME: &str = "默认工作区";
+
+async fn open_workspace_at(
+    path: &str,
+    state: &AppState,
+    fallback_name: Option<&str>,
+) -> CommandResult<Workspace> {
+    let root = workspace::canonical_workspace(path).map_err(err)?;
     let root_string = root.to_string_lossy().to_string();
     let db = state.db.lock().await;
     let existing = db.workspace_by_path(&root_string).map_err(err)?;
     let stamp = Utc::now().to_rfc3339();
+    let folder_name = root
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "workspace".into());
+    let name = match existing.as_ref() {
+        Some(value) if value.name == "workspace" => {
+            fallback_name.unwrap_or(value.name.as_str()).to_string()
+        }
+        Some(value) => value.name.clone(),
+        None => fallback_name.unwrap_or(&folder_name).to_string(),
+    };
     let workspace = Workspace {
         id: existing
             .as_ref()
             .map(|value| value.id.clone())
             .unwrap_or_else(|| format!("ws_{}", Uuid::new_v4().simple())),
-        name: root
-            .file_name()
-            .map(|value| value.to_string_lossy().to_string())
-            .unwrap_or_else(|| "workspace".into()),
+        name,
         root_path: root_string,
         branch: workspace::git_branch(&root),
         dirty_summary: workspace::git_dirty_summary(&root),
@@ -54,6 +67,18 @@ pub async fn workspace_open(path: String, state: State<'_, AppState>) -> Command
         .workspace(&workspace.id)
         .map_err(err)?
         .unwrap_or(workspace))
+}
+
+#[tauri::command]
+pub async fn workspace_open(path: String, state: State<'_, AppState>) -> CommandResult<Workspace> {
+    open_workspace_at(&path, &state, None).await
+}
+
+#[tauri::command]
+pub async fn workspace_ensure_default(state: State<'_, AppState>) -> CommandResult<Workspace> {
+    let root = workspace::ensure_default_workspace_dir(&state.data_dir).map_err(err)?;
+    let path = root.to_string_lossy().into_owned();
+    open_workspace_at(&path, &state, Some(DEFAULT_WORKSPACE_NAME)).await
 }
 
 #[tauri::command]

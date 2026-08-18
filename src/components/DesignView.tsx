@@ -26,9 +26,9 @@ import {
   DeviceTablet,
   Export,
   FileHtml,
-  FolderOpen,
   ImageSquare,
   ImagesSquare,
+  MagnifyingGlass,
   Minus,
   Monitor,
   Palette,
@@ -41,6 +41,7 @@ import {
   SidebarSimple,
   Sparkle,
   SquaresFour,
+  Trash,
   UploadSimple,
 } from "@phosphor-icons/react";
 import { useShallow } from "zustand/react/shallow";
@@ -52,25 +53,30 @@ import {
   type Checkpoint,
   type ContextItem,
   type DesignSystem,
+  type DesignSystemContent,
   type Run,
 } from "../host/client";
 import { chatModelLabel } from "../lib/models";
 import { loadPromptHistory, pushPromptHistory } from "../lib/prompts";
 import { runTimingLabel, tokensLite } from "../lib/runMetrics";
-import { useWorkbench, type DesignRoute, type DesignRunInput } from "../store/workbench";
-import { BrandMark } from "./BrandMark";
+import {
+  useWorkbench,
+  type DesignRoute,
+  type DesignRunInput,
+  type Toast,
+} from "../store/workbench";
 import {
   DesignAgentPlan,
   DesignApprovalCard,
   DesignArtifactCard,
   DesignCheckpointCard,
   DesignComparison,
-  DesignConfirm,
   DesignConnectionBanner,
   DesignEditsList,
   DesignEmptyColumn,
   DesignErrorBanner,
   DesignJobProgress,
+  DesignOnboarding,
   DesignPathTree,
   DesignQueuedNote,
   DesignRecommendation,
@@ -81,6 +87,7 @@ import {
   DesignTypingBubble,
   useElapsedLabel,
 } from "./designElements";
+import { AuiTabs, CheckpointPreviewDialog, useConfirm } from "./pageElements";
 import { GenerationLoader } from "./GenerationLoader";
 import { PanelSash } from "./PanelSash";
 import { ThinkingIndicator } from "./ThinkingIndicator";
@@ -171,9 +178,43 @@ const DESIGN_EMPTY_PROMPTS = [
   "后台表格页：筛选、批量操作、行内状态",
   "移动端优先的设置页，分组开关与说明",
 ];
+const DESIGN_ONBOARD_KEY = "herdock.design.onboarded";
+const DESIGN_ONBOARD_STEPS = [
+  {
+    title: "先描述界面",
+    body: "在左侧写下目标用户、页面结构和关键内容。Agent 会把可预览的 HTML 写进 out/design/。",
+    example: DESIGN_EMPTY_PROMPTS[0],
+  },
+  {
+    title: "并排比较方案",
+    body: "一次可以生成 2–3 个方案。点选后用「采用」，后续迭代会钉在这一版上。",
+    example: DESIGN_FOLLOWUPS[0],
+  },
+  {
+    title: "项目、系统与素材",
+    body: "顶部分段可进项目库、设计系统和素材库。选用的设计系统会进入下一次生成。",
+    example: "用当前设计系统做一版登录页，左侧品牌、右侧表单",
+  },
+] as const;
 const JOB_STAGES = [{ name: "排队" }, { name: "生成" }, { name: "写入" }, { name: "预览" }];
 
 const DESIGN_BRIEF_KEY = "herdock.design-brief.v1";
+
+function loadOnboarded(): boolean {
+  try {
+    return localStorage.getItem(DESIGN_ONBOARD_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveOnboarded(): void {
+  try {
+    localStorage.setItem(DESIGN_ONBOARD_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
 
 function loadBrief(workspaceId: string | undefined): string {
   if (!workspaceId) return "";
@@ -203,6 +244,7 @@ export function DesignView() {
       checkpoints: s.checkpoints,
       contextItems: s.contextItems,
       continueDesignRun: s.continueDesignRun,
+      checkpointPreview: s.checkpointPreview,
       designDraft: s.designDraft,
       designRoute: s.designRoute,
       dirty: s.dirty,
@@ -213,17 +255,22 @@ export function DesignView() {
       model: s.model,
       openDesignArtifact: s.openDesignArtifact,
       openPath: s.openPath,
-      openWorkspacePath: s.openWorkspacePath,
+      ensureDefaultWorkspace: s.ensureDefaultWorkspace,
       providerId: s.providerId,
       providerProfiles: s.providerProfiles,
+      pushToast: s.pushToast,
       refreshPanels: s.refreshPanels,
+      removeContextItem: s.removeContextItem,
       resolveApproval: s.resolveApproval,
+      restoreCheckpoint: s.restoreCheckpoint,
       run: s.run,
+      selectedContextIds: s.selectedContextIds,
       setActiveDesignArtifact: s.setActiveDesignArtifact,
       setCenterView: s.setCenterView,
       setDesignDraft: s.setDesignDraft,
       setDesignRoute: s.setDesignRoute,
       startDesignRun: s.startDesignRun,
+      toggleContextItem: s.toggleContextItem,
       workspace: s.workspace,
     })),
   );
@@ -232,6 +279,7 @@ export function DesignView() {
   const [reloadKey, setReloadKey] = useState(0);
   const [panelOpen, setPanelOpen] = useState(true);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
+  const [askConfirm, confirmLayer] = useConfirm();
 
   const designs = useMemo(
     () =>
@@ -287,26 +335,48 @@ export function DesignView() {
     state.setDesignDraft({ designSystemId: systems[0].id });
   }, [state, systems]);
 
+  useEffect(() => {
+    if (!state.hostOnline || state.workspace) return;
+    void state.ensureDefaultWorkspace();
+  }, [state.hostOnline, state.workspace, state.ensureDefaultWorkspace]);
+
   const refresh = useCallback(async () => {
     setReloadKey((value) => value + 1);
-    await state.refreshPanels();
+    try {
+      await state.refreshPanels();
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "刷新失败", detail: String(error) });
+    }
   }, [state]);
-  const openWorkspace = async () => {
-    const path = await open({ directory: true, multiple: false, title: "打开设计工作区" });
-    if (typeof path === "string") await state.openWorkspacePath(path);
-  };
   const exportArtifact = async (artifact: Artifact) => {
     if (!state.workspace) return;
     const destination = await save({
       defaultPath: artifact.name,
       title: `导出设计 · ${artifact.name}`,
     });
-    if (destination)
+    if (!destination) return;
+    try {
       await hostApi.exportArtifact(
         state.workspace.id,
         artifact.entryPath || artifact.path,
         destination,
       );
+      state.pushToast({ kind: "ok", title: "已导出", detail: artifact.name });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "导出失败", detail: String(error) });
+    }
+  };
+  const handleNewDesign = async () => {
+    if (state.run && isRunActive(state.run.status)) {
+      const ok = await askConfirm({
+        title: "新建设计？",
+        body: "当前有正在进行的设计任务。新建设计会离开当前画布，运行仍会在后台继续。",
+        confirmLabel: "继续新建",
+      });
+      if (!ok) return;
+    }
+    state.setActiveDesignArtifact(null);
+    state.setDesignRoute("canvas");
   };
 
   return (
@@ -323,21 +393,20 @@ export function DesignView() {
           </span>
         </div>
         <nav className="design-routes" aria-label="设计工作区导航">
-          {ROUTES.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              className={state.designRoute === id ? "active" : ""}
-              aria-current={state.designRoute === id ? "page" : undefined}
-              onClick={() => state.setDesignRoute(id)}
-            >
-              <Icon size={13} />
-              {label}
-              <i aria-hidden />
-            </button>
-          ))}
+          <AuiTabs
+            value={state.designRoute}
+            onValueChange={(id) => state.setDesignRoute(id)}
+            variant="default"
+            size="sm"
+            aria-label="设计工作区导航"
+            items={ROUTES.map(({ id, label, Icon }) => ({
+              value: id,
+              label,
+              icon: <Icon size={13} />,
+            }))}
+          />
         </nav>
-        <div className="design-header-actions">
+        <div className="design-header-actions" data-tauri-drag-region="false">
           <div className="design-system-pick">
             <button
               type="button"
@@ -412,18 +481,6 @@ export function DesignView() {
       </header>
 
       <main className={`design-body ${state.designRoute === "canvas" ? "canvas-route" : ""}`}>
-        {!state.workspace && (
-          <div className="design-workspace-callout">
-            <FolderOpen size={20} />
-            <span>
-              <strong>先选择一个本地工作区</strong>
-              <small>设计源文件和产物会写入该工作区的 out/design 目录。</small>
-            </span>
-            <button type="button" onClick={() => void openWorkspace()}>
-              打开文件夹
-            </button>
-          </div>
-        )}
         {state.error && (
           <div className="design-inline-error" role="alert">
             {state.error}
@@ -448,7 +505,7 @@ export function DesignView() {
             assistantName={assistantName}
             onDraft={state.setDesignDraft}
             onSelectArtifact={(artifact) => void state.openDesignArtifact(artifact.id)}
-            onNewDesign={() => state.setActiveDesignArtifact(null)}
+            onNewDesign={() => void handleNewDesign()}
             onStart={state.startDesignRun}
             onContinue={state.continueDesignRun}
             onResolveApproval={state.resolveApproval}
@@ -456,30 +513,56 @@ export function DesignView() {
             onOpenSource={(path) => void state.openPath(path)}
             onExport={exportArtifact}
             onRefresh={refresh}
+            askConfirm={askConfirm}
           />
         )}
         {state.designRoute === "projects" && (
           <DesignProjects
             designs={designs}
             runs={state.allRuns}
+            workspaceId={state.workspace?.id}
             onOpen={(artifact) => void state.openDesignArtifact(artifact.id)}
-            onCreate={() => {
-              state.setActiveDesignArtifact(null);
-              state.setDesignRoute("canvas");
-            }}
+            onCreate={() => void handleNewDesign()}
+            onExport={exportArtifact}
+            onReveal={(path) =>
+              state.workspace && void hostApi.revealArtifact(state.workspace.id, path)
+            }
           />
         )}
         {state.designRoute === "systems" && (
-          <DesignSystems systems={systems} error={systemsError} />
+          <DesignSystems
+            systems={systems}
+            error={systemsError}
+            selectedId={state.designDraft.designSystemId}
+            workspaceId={state.workspace?.id}
+            onSelect={(id) => state.setDesignDraft({ designSystemId: id })}
+            onCreated={() => {
+              setReloadKey((value) => value + 1);
+            }}
+            onToast={state.pushToast}
+          />
         )}
         {state.designRoute === "assets" && (
           <DesignAssets
             items={state.contextItems}
+            selectedIds={state.selectedContextIds}
+            workspaceId={state.workspace?.id}
             workspaceReady={!!state.workspace}
             onImport={state.importContextPaths}
+            onToggle={state.toggleContextItem}
+            onRemove={state.removeContextItem}
+            onToast={state.pushToast}
           />
         )}
       </main>
+      {state.checkpointPreview && (
+        <CheckpointPreviewDialog
+          preview={state.checkpointPreview}
+          onClose={() => useWorkbench.setState({ checkpointPreview: null })}
+          onRestore={(id) => state.restoreCheckpoint(id)}
+        />
+      )}
+      {confirmLayer}
     </div>
   );
 }
@@ -509,6 +592,7 @@ function DesignCanvasRoute({
   onOpenSource,
   onExport,
   onRefresh,
+  askConfirm,
 }: {
   docs: DesignDoc[];
   activeDoc: DesignDoc | null;
@@ -534,6 +618,7 @@ function DesignCanvasRoute({
   onOpenSource: (path: string) => void;
   onExport: (artifact: Artifact) => Promise<void>;
   onRefresh: () => Promise<void>;
+  askConfirm: (options: { title: string; body: string; confirmLabel: string }) => Promise<boolean>;
 }) {
   const [viewport, setViewport] = useState<ViewportId>("desktop");
   const [zoom, setZoom] = useState(80);
@@ -542,13 +627,10 @@ function DesignCanvasRoute({
   const [maximized, setMaximized] = useState<Artifact | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [applyState, setApplyState] = useState<"idle" | "saving" | "done" | "error">("idle");
-  const [confirm, setConfirm] = useState<{
-    title: string;
-    body: string;
-    confirmLabel: string;
-    run: () => void;
-  } | null>(null);
+  const [onboarded, setOnboarded] = useState(loadOnboarded);
+  const [onboardIndex, setOnboardIndex] = useState(0);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const pushToast = useWorkbench((state) => state.pushToast);
 
   const turns = useMemo(() => (activeDoc ? groupTurns(activeDoc.artifacts) : []), [activeDoc]);
   const currentTurn = turns[0] || null;
@@ -566,6 +648,10 @@ function DesignCanvasRoute({
 
   useEffect(() => setApplyState("idle"), [activeVariant?.id, tweaks]);
 
+  const completeOnboard = () => {
+    saveOnboarded();
+    setOnboarded(true);
+  };
   const focusComposer = () => composerRef.current?.focus();
   const applyTweaks = async () => {
     if (!workspace || !activeVariant) return;
@@ -575,9 +661,11 @@ function DesignCanvasRoute({
       const file = await hostApi.readFile(workspace.id, path);
       await hostApi.writeFile(workspace.id, path, withTweakBlock(file.content, tweaks));
       setApplyState("done");
+      pushToast({ kind: "ok", title: "已写入预览调整", detail: path });
       await onRefresh();
-    } catch {
+    } catch (error) {
       setApplyState("error");
+      pushToast({ kind: "error", title: "应用调整失败", detail: String(error) });
     }
   };
 
@@ -589,16 +677,17 @@ function DesignCanvasRoute({
       Icon: BracketsCurly,
       run: () => {
         const openSource = () => onOpenSource(artifact.entryPath || artifact.path);
-        if (dirty) {
-          setConfirm({
-            title: "打开源文件？",
-            body: "代码编辑器里有未保存内容。打开设计源文件会替换当前编辑内容。",
-            confirmLabel: "继续打开",
-            run: openSource,
-          });
+        if (!dirty) {
+          openSource();
           return;
         }
-        openSource();
+        void askConfirm({
+          title: "打开源文件？",
+          body: "代码编辑器里有未保存内容。打开设计源文件会替换当前编辑内容。",
+          confirmLabel: "继续打开",
+        }).then((ok) => {
+          if (ok) openSource();
+        });
       },
     },
     { key: "export", title: "导出这一版", Icon: Copy, run: () => void onExport(artifact) },
@@ -654,38 +743,43 @@ function DesignCanvasRoute({
 
       <div className="design-canvas-main">
         <div className="design-doc-tabs">
-          {docs.map((doc) => (
-            <button
-              key={doc.slug}
-              type="button"
-              className={doc.slug === activeDoc?.slug ? "active" : ""}
-              onClick={() => onSelectArtifact(doc.artifacts[0])}
-            >
-              <FileHtml size={12} />
-              {doc.title}
-            </button>
-          ))}
+          {docs.length > 0 && (
+            <AuiTabs
+              value={activeDoc?.slug || docs[0].slug}
+              onValueChange={(slug) => {
+                const doc = docs.find((item) => item.slug === slug);
+                if (doc?.artifacts[0]) onSelectArtifact(doc.artifacts[0]);
+              }}
+              variant="ghost"
+              size="sm"
+              aria-label="设计文档"
+              items={docs.map((doc) => ({
+                value: doc.slug,
+                label: doc.title,
+                icon: <FileHtml size={12} />,
+              }))}
+            />
+          )}
           <button type="button" className="design-doc-add" title="新建设计" onClick={onNewDesign}>
             <Plus size={12} />
           </button>
           <div className="design-doc-tools">
-            <div className="seg icon-seg" role="group" aria-label="预览尺寸">
-              {(Object.keys(VIEWPORTS) as ViewportId[]).map((id) => {
+            <AuiTabs
+              value={viewport}
+              onValueChange={setViewport}
+              variant="outline"
+              size="sm"
+              aria-label="预览尺寸"
+              items={(Object.keys(VIEWPORTS) as ViewportId[]).map((id) => {
                 const { Icon, label, width, height } = VIEWPORTS[id];
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    className={viewport === id ? "active" : ""}
-                    aria-pressed={viewport === id}
-                    title={`${label} ${width} × ${height}`}
-                    onClick={() => setViewport(id)}
-                  >
-                    <Icon size={12} />
-                  </button>
-                );
+                return {
+                  value: id,
+                  label: <span className="sr-only">{label}</span>,
+                  icon: <Icon size={14} />,
+                  title: `${label} ${width} × ${height}`,
+                };
               })}
-            </div>
+            />
             <span className="mono design-doc-size">
               {VIEWPORTS[viewport].width} × {VIEWPORTS[viewport].height}
             </span>
@@ -748,6 +842,21 @@ function DesignCanvasRoute({
                 </section>
               ))}
             </div>
+          ) : !onboarded ? (
+            <DesignOnboarding
+              steps={DESIGN_ONBOARD_STEPS}
+              index={onboardIndex}
+              onSkip={completeOnboard}
+              onNext={() => {
+                if (onboardIndex >= DESIGN_ONBOARD_STEPS.length - 1) {
+                  completeOnboard();
+                  onDraft({ brief: DESIGN_ONBOARD_STEPS[onboardIndex].example });
+                  focusComposer();
+                  return;
+                }
+                setOnboardIndex((value) => value + 1);
+              }}
+            />
           ) : (
             <DesignEmptyColumn
               title="画布还是空的"
@@ -819,26 +928,24 @@ function DesignCanvasRoute({
             onChange={setDesignInspectorWidth}
             onReset={resetDesignInspectorWidth}
           />
-          <div className="inspector-tabs" role="tablist">
-            {(
+          <AuiTabs
+            className="aui-tabs-stretch inspector-tabs"
+            value={tab}
+            onValueChange={setTab}
+            variant="default"
+            size="sm"
+            aria-label="检查面板"
+            items={
               [
-                ["tweaks", "调整"],
-                ["versions", `版本${checkpoints.length ? ` ${checkpoints.length}` : ""}`],
-                ["inspect", "检查"],
+                { value: "tweaks" as const, label: "调整" },
+                {
+                  value: "versions" as const,
+                  label: `版本${checkpoints.length ? ` ${checkpoints.length}` : ""}`,
+                },
+                { value: "inspect" as const, label: "检查" },
               ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                className={tab === id ? "active" : ""}
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+            }
+          />
 
           {tab === "tweaks" && (
             <div className="inspector-content tweaks">
@@ -1103,18 +1210,6 @@ function DesignCanvasRoute({
           />
         </div>
       )}
-      {confirm && (
-        <DesignConfirm
-          title={confirm.title}
-          body={confirm.body}
-          confirmLabel={confirm.confirmLabel}
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => {
-            confirm.run();
-            setConfirm(null);
-          }}
-        />
-      )}
     </section>
   );
 }
@@ -1169,6 +1264,7 @@ function DesignSessionPanel({
   const [retrying, setRetrying] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [acceptedVariantId, setAcceptedVariantId] = useState<string | null>(null);
   const format = FORMATS.find((item) => item.id === formatId) || FORMATS[0];
   const messages = useMemo(() => conversation(events), [events]);
   const plan = useMemo(() => latestPlan(events), [events]);
@@ -1177,6 +1273,7 @@ function DesignSessionPanel({
   const failure = useMemo(() => latestError(events, lastRun), [events, lastRun]);
   const runId = activeVariant?.runId || liveRun?.id;
   const iterating = !!runId && hasProject;
+  useEffect(() => setAcceptedVariantId(null), [currentTurn?.key]);
   const system = systems.find((item) => item.id === draft.designSystemId);
   const retryRun = useWorkbench((state) => state.retryRun);
   const cancelRun = useWorkbench((state) => state.cancelRun);
@@ -1237,6 +1334,13 @@ function DesignSessionPanel({
     setSlashIndex(0);
     focusInput();
   };
+  const applyMention = (item: (typeof mentionOptions)[number]) => {
+    onDraft({
+      brief: draft.brief.replace(/(^|[\s])@([^\s@]*)$/, `$1@${item.name} `),
+      designSystemId: item.id,
+    });
+    focusInput();
+  };
   const importFiles = async () => {
     const selected = await open({
       multiple: true,
@@ -1245,7 +1349,21 @@ function DesignSessionPanel({
       filters: [{ name: "设计素材", extensions: ["css", "svg", "png", "jpg", "md", "txt"] }],
     });
     const paths = typeof selected === "string" ? [selected] : selected || [];
-    if (paths.length) await importContextPaths(paths);
+    if (paths.length) {
+      try {
+        await importContextPaths(paths);
+        useWorkbench.getState().pushToast({
+          kind: "ok",
+          title: `已导入 ${paths.length} 个素材`,
+        });
+      } catch (error) {
+        useWorkbench.getState().pushToast({
+          kind: "error",
+          title: "导入失败",
+          detail: String(error),
+        });
+      }
+    }
     setPlusOpen(false);
   };
 
@@ -1285,9 +1403,9 @@ function DesignSessionPanel({
           : "";
 
   return (
-    <aside className="design-session-panel" aria-label="设计会话">
-      <div className="canvas-panel-head">
-        <span className="mono">DESIGN SESSION</span>
+    <aside className="design-session-panel" data-slot="chat-panel" aria-label="设计会话">
+      <div className="design-chat-head">
+        <span>会话</span>
         {liveRun ? (
           <DesignStatusPill
             state={liveRun.status === "waiting_approval" ? "waiting" : "working"}
@@ -1296,7 +1414,7 @@ function DesignSessionPanel({
             onPause={() => void cancelRun()}
           />
         ) : (
-          <span className="mono turns">{turns.length ? `${turns.length} 轮` : "新会话"}</span>
+          <span className="design-chat-turns">{turns.length ? `${turns.length} 轮` : "新会话"}</span>
         )}
         <button
           type="button"
@@ -1332,7 +1450,7 @@ function DesignSessionPanel({
             <Fragment key={message.key}>
               {showDay && <div className="design-day-sep">{day}</div>}
               {message.role === "user" ? (
-                <div className="design-bubble user">
+                <div className="design-chat-user" data-slot="chat-panel-user-message">
                   <p>{message.text}</p>
                   <span className="design-msg-meta">
                     {message.at && <em className="mono">{timeOf(message.at)}</em>}
@@ -1351,29 +1469,24 @@ function DesignSessionPanel({
                   </span>
                 </div>
               ) : (
-                <div className="design-bubble agent">
-                  <span className="design-avatar">
-                    <BrandMark />
+                <div className="design-chat-assistant" data-slot="chat-panel-assistant-message">
+                  <span className="design-speaker">
+                    <span className="speaker-name">{assistantName || "Assistant"}</span>
+                    {message.at && <em className="mono">{timeOf(message.at)}</em>}
+                    <CopyBubbleAction
+                      text={message.text}
+                      onRetry={
+                        message.last && lastRun
+                          ? () => {
+                              setRetrying(true);
+                              void retryRun(lastRun.id).finally(() => setRetrying(false));
+                            }
+                          : undefined
+                      }
+                      retrying={retrying}
+                    />
                   </span>
-                  <div>
-                    <span className="design-speaker">
-                      <span className="speaker-dot" aria-hidden="true" />
-                      <span className="speaker-name">{assistantName || "Assistant"}</span>
-                      {message.at && <em className="mono">{timeOf(message.at)}</em>}
-                      <CopyBubbleAction
-                        text={message.text}
-                        onRetry={
-                          message.last && lastRun
-                            ? () => {
-                                setRetrying(true);
-                                void retryRun(lastRun.id).finally(() => setRetrying(false));
-                              }
-                            : undefined
-                        }
-                        retrying={retrying}
-                      />
-                    </span>
-                    <StreamText text={message.text} streaming={message.streaming} />
+                  <StreamText text={message.text} streaming={message.streaming} />
                     {message.last && currentTurn && currentTurn.variants.length > 3 && (
                       <div className="design-option-list">
                         {currentTurn.variants.map((artifact, variantIndex) => (
@@ -1436,8 +1549,11 @@ function DesignSessionPanel({
                               </span>
                             </>
                           }
-                          accepted={false}
-                          onAccept={focusInput}
+                          accepted={acceptedVariantId === activeVariant.id}
+                          onAccept={() => {
+                            setAcceptedVariantId(activeVariant.id);
+                            focusInput();
+                          }}
                           onAlternatives={() => {
                             const index = currentTurn.variants.findIndex(
                               (item) => item.id === activeVariant.id,
@@ -1448,7 +1564,6 @@ function DesignSessionPanel({
                           }}
                         />
                       )}
-                  </div>
                 </div>
               )}
             </Fragment>
@@ -1548,68 +1663,129 @@ function DesignSessionPanel({
 
       <form
         className="design-iterate-composer"
+        data-slot="composer"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <div
-          className={`design-composer-card${slashOptions.length || mentionOptions.length ? " menu-open" : ""}`}
-        >
-          {slashOptions.length > 0 && (
-            <ul className="design-composer-menu" role="listbox">
-              {slashOptions.map((option, index) => (
-                <li key={option.key}>
-                  <button
-                    type="button"
-                    className={index === slashIndex ? "active" : ""}
-                    onClick={() => applySlash(option)}
-                  >
-                    <span>{option.label}</span>
-                    <small>{option.hint}</small>
+        {slashOptions.length > 0 && (
+          <ul className="design-composer-menu" data-slot="composer-menu" role="listbox">
+            {slashOptions.map((option, index) => (
+              <li key={option.key}>
+                <button
+                  type="button"
+                  className={index === slashIndex ? "active" : ""}
+                  onClick={() => applySlash(option)}
+                >
+                  <span>{option.label}</span>
+                  <small>{option.hint}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {mentionOptions.length > 0 && (
+          <ul className="design-composer-menu" data-slot="composer-menu" role="listbox">
+            {mentionOptions.map((item, index) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={index === 0 ? "active" : ""}
+                  onClick={() => applyMention(item)}
+                >
+                  <At size={12} />
+                  <span>{item.name}</span>
+                  <small>{scopeLabel(item.scope)}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {(system || activeVariant || contextItems.length > 0) && (
+          <div className="design-composer-attachments" data-slot="composer-attachments">
+            {system?.hasTokens && <span className="accent">tokens.css</span>}
+            {system && <span>{system.name}</span>}
+            {activeVariant && <span>{activeVariant.name}</span>}
+            {contextItems.slice(0, 3).map((item) => (
+              <span key={item.id}>{item.displayName}</span>
+            ))}
+          </div>
+        )}
+        <div className="design-chat-composer" data-slot="chat-panel-composer">
+          <div className="design-plus-wrap">
+            <button
+              type="button"
+              className="design-chat-attach"
+              data-slot="composer-attach"
+              title="添加"
+              aria-label="添加"
+              aria-expanded={plusOpen}
+              onClick={() => setPlusOpen((value) => !value)}
+            >
+              <Plus size={16} />
+            </button>
+            {plusOpen && (
+              <ul className="design-composer-menu plus" role="menu">
+                <li>
+                  <button type="button" onClick={onNewDesign}>
+                    新建设计
                   </button>
                 </li>
-              ))}
-            </ul>
-          )}
-          {mentionOptions.length > 0 && (
-            <ul className="design-composer-menu" role="listbox">
-              {mentionOptions.map((item) => (
-                <li key={item.id}>
+                <li>
+                  <button type="button" onClick={() => void importFiles()}>
+                    <Paperclip size={12} />
+                    导入素材
+                  </button>
+                </li>
+                {!iterating && (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setVariantCount((value) => (value % 3) + 1)}
+                    >
+                      方案 ×{variantCount}
+                    </button>
+                  </li>
+                )}
+                <li>
                   <button
                     type="button"
                     onClick={() => {
-                      onDraft({
-                        brief: draft.brief.replace(/(^|[\s])@([^\s@]*)$/, `$1@${item.name} `),
-                        designSystemId: item.id,
-                      });
-                      focusInput();
+                      const index = FORMATS.findIndex((item) => item.id === formatId);
+                      setFormatId(FORMATS[(index + 1) % FORMATS.length].id);
                     }}
                   >
-                    <At size={12} />
-                    <span>{item.name}</span>
-                    <small>{scopeLabel(item.scope)}</small>
+                    格式 · {format.label}
                   </button>
                 </li>
-              ))}
-            </ul>
-          )}
-          <div className="design-composer-chips">
-            {system?.hasTokens && <span className="mono accent">@ tokens.css</span>}
-            {system && <span className="mono">{system.name}</span>}
-            {activeVariant && <span className="mono">{activeVariant.name}</span>}
-            {contextItems.slice(0, 3).map((item) => (
-              <span key={item.id} className="mono">
-                {item.displayName}
-              </span>
-            ))}
+                {recentPrompts.map((text) => (
+                  <li key={text}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDraft({ brief: text });
+                        setPlusOpen(false);
+                        focusInput();
+                      }}
+                    >
+                      {text}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <textarea
             ref={ref}
+            data-slot="composer-input"
             value={draft.brief}
             onChange={(event) => {
               onDraft({ brief: event.target.value });
               setSlashIndex(0);
+              const el = event.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
             }}
             onKeyDown={(event) => {
               if (slashOptions.length) {
@@ -1623,7 +1799,7 @@ function DesignSessionPanel({
                   setSlashIndex((value) => (value - 1 + slashOptions.length) % slashOptions.length);
                   return;
                 }
-                if (event.key === "Enter" && !event.ctrlKey && !event.metaKey) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   applySlash(slashOptions[slashIndex] || slashOptions[0]);
                   return;
@@ -1634,103 +1810,59 @@ function DesignSessionPanel({
                   return;
                 }
               }
+              if (mentionOptions.length) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  applyMention(mentionOptions[0]);
+                  return;
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  onDraft({ brief: draft.brief.replace(/(^|[\s])@([^\s@]*)$/, "$1") });
+                  return;
+                }
+              }
               if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void submit();
+                return;
+              }
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing &&
+                !event.altKey
+              ) {
                 event.preventDefault();
                 void submit();
               }
             }}
-            placeholder={
-              iterating
-                ? "说明要改的地方，或输入 / 唤起命令…"
-                : "描述你要的界面，或输入 / 唤起命令…"
-            }
-            rows={2}
+            placeholder={iterating ? "说明要改的地方…" : "描述你要的界面…"}
+            rows={1}
           />
-          <div className="design-composer-row">
-            <div className="design-plus-wrap">
-              <button
-                type="button"
-                className="round"
-                title="更多"
-                aria-label="更多"
-                aria-expanded={plusOpen}
-                onClick={() => setPlusOpen((value) => !value)}
-              >
-                <Plus size={12} />
-              </button>
-              {plusOpen && (
-                <ul className="design-composer-menu plus" role="menu">
-                  <li>
-                    <button type="button" onClick={onNewDesign}>
-                      新建设计
-                    </button>
-                  </li>
-                  <li>
-                    <button type="button" onClick={() => void importFiles()}>
-                      <Paperclip size={12} />
-                      导入素材
-                    </button>
-                  </li>
-                  {recentPrompts.map((text) => (
-                    <li key={text}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onDraft({ brief: text });
-                          setPlusOpen(false);
-                          focusInput();
-                        }}
-                      >
-                        {text}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {!iterating && (
-              <button
-                type="button"
-                className="pill"
-                title="一次生成几个方案"
-                onClick={() => setVariantCount((value) => (value % 3) + 1)}
-              >
-                方案 ×{variantCount}
-                <CaretDown size={9} />
-              </button>
-            )}
-            <label className="pill">
-              <span className="sr-only">产物格式</span>
-              <select value={formatId} onChange={(event) => setFormatId(event.target.value)}>
-                {FORMATS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {liveRun ? (
-              <button
-                type="button"
-                className="send stop"
-                title="停止"
-                aria-label="停止"
-                onClick={() => void cancelRun()}
-              >
-                <span className="stop-sq" />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className="send"
-                disabled={!draft.brief.trim() || sending || !hostOnline}
-                title={iterating ? "继续迭代 (Ctrl/⌘ + Enter)" : "开始设计 (Ctrl/⌘ + Enter)"}
-                aria-label={iterating ? "继续迭代" : "开始设计"}
-              >
-                <ArrowUp size={12} />
-              </button>
-            )}
-          </div>
+          {liveRun ? (
+            <button
+              type="button"
+              className="design-chat-send is-streaming"
+              data-slot="composer-send"
+              title="停止"
+              aria-label="停止"
+              onClick={() => void cancelRun()}
+            >
+              <span className="stop-sq" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className={`design-chat-send${draft.brief.trim() ? " is-ready" : ""}`}
+              data-slot="composer-send"
+              disabled={!draft.brief.trim() || sending || !hostOnline}
+              title={iterating ? "继续迭代 (Enter)" : "开始设计 (Enter)"}
+              aria-label={iterating ? "继续迭代" : "开始设计"}
+            >
+              <ArrowUp size={14} weight="bold" />
+            </button>
+          )}
         </div>
       </form>
       <PanelSash
@@ -1960,14 +2092,34 @@ function DesignPreviewFrame({
 function DesignProjects({
   designs,
   runs,
+  workspaceId,
   onOpen,
   onCreate,
+  onExport,
+  onReveal,
 }: {
   designs: Artifact[];
   runs: Run[];
+  workspaceId?: string;
   onOpen: (artifact: Artifact) => void;
   onCreate: () => void;
+  onExport: (artifact: Artifact) => Promise<void>;
+  onReveal: (path: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "ready" | "live">("all");
+  const projects = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return groupDocs(designs).filter((doc) => {
+      const cover = doc.artifacts[0];
+      const run = runs.find((item) => item.id === cover?.runId);
+      const live = !!(run && isRunActive(run.status));
+      if (filter === "live" && !live) return false;
+      if (filter === "ready" && live) return false;
+      if (!needle) return true;
+      return `${doc.title} ${doc.slug} ${cover?.path || ""}`.toLowerCase().includes(needle);
+    });
+  }, [designs, filter, query, runs]);
   return (
     <section className="design-page-section">
       <div className="design-page-title">
@@ -1976,32 +2128,62 @@ function DesignProjects({
           <h2>项目</h2>
           <p>每个项目都由 manifest 管理，并保留可继续编辑的 HTML 源文件。</p>
         </span>
-        <button type="button" className="primary" onClick={onCreate}>
-          <Sparkle size={13} />
-          新建设计
-        </button>
-      </div>
-      {designs.length ? (
-        <div className="design-project-grid">
-          {designs.map((artifact) => (
-            <DesignProjectCard
-              key={artifact.id}
-              artifact={artifact}
-              run={runs.find((item) => item.id === artifact.runId)}
-              onOpen={onOpen}
+        <div className="design-page-toolbar">
+          <label className="g-search">
+            <MagnifyingGlass size={14} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索项目"
             />
-          ))}
-        </div>
-      ) : (
-        <div className="design-empty-state">
-          <Monitor size={32} weight="thin" />
-          <strong>还没有设计项目</strong>
-          <p>从一段 brief 开始，首个产物会生成在 out/design 目录。</p>
-          <button type="button" onClick={onCreate}>
+          </label>
+          <AuiTabs
+            value={filter}
+            onValueChange={setFilter}
+            variant="pills"
+            size="sm"
+            aria-label="项目状态"
+            items={[
+              { value: "all" as const, label: "全部" },
+              { value: "ready" as const, label: "已完成" },
+              { value: "live" as const, label: "生成中" },
+            ]}
+          />
+          <button type="button" className="primary" onClick={onCreate}>
             <Sparkle size={13} />
-            创建第一个设计
+            新建设计
           </button>
         </div>
+      </div>
+      {projects.length ? (
+        <div className="design-project-grid">
+          {projects.map((doc) => {
+            const artifact = doc.artifacts[0];
+            const run = runs.find((item) => item.id === artifact.runId);
+            return (
+              <DesignProjectCard
+                key={doc.slug}
+                artifact={artifact}
+                title={doc.title}
+                run={run}
+                workspaceId={workspaceId}
+                onOpen={onOpen}
+                onExport={onExport}
+                onReveal={onReveal}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <DesignEmptyColumn
+          title={designs.length ? "没有匹配的项目" : "还没有设计项目"}
+          body={
+            designs.length
+              ? "换个名称或状态再试一次。"
+              : "从一段 brief 开始，首个产物会生成在 out/design 目录。"
+          }
+          action={designs.length ? undefined : { label: "创建第一个设计", onClick: onCreate }}
+        />
       )}
     </section>
   );
@@ -2009,18 +2191,39 @@ function DesignProjects({
 
 function DesignProjectCard({
   artifact,
+  title,
   run,
+  workspaceId,
   onOpen,
+  onExport,
+  onReveal,
 }: {
   artifact: Artifact;
+  title: string;
   run?: Run;
+  workspaceId?: string;
   onOpen: (artifact: Artifact) => void;
+  onExport: (artifact: Artifact) => Promise<void>;
+  onReveal: (path: string) => void;
 }) {
   const generating = !!(run && isRunActive(run.status));
+  const htmlCover =
+    artifact.kind !== "deck" && /\.html?$/i.test(artifact.entryPath || artifact.path);
   return (
     <article className="design-project-card">
       <button type="button" className="design-project-cover" onClick={() => onOpen(artifact)}>
-        {artifact.kind === "deck" ? (
+        {htmlCover && workspaceId ? (
+          <span className="design-project-thumb">
+            <DesignPreviewFrame
+              artifact={artifact}
+              workspaceId={workspaceId}
+              tweaks={DEFAULT_TWEAKS}
+              width={1280}
+              height={800}
+              scale={0.18}
+            />
+          </span>
+        ) : artifact.kind === "deck" ? (
           <PresentationChart size={28} weight="duotone" />
         ) : (
           <BracketsCurly size={28} weight="duotone" />
@@ -2028,16 +2231,87 @@ function DesignProjectCard({
         <em className="mono">{artifact.renderer || artifact.ext}</em>
       </button>
       <DesignArtifactCard
-        title={artifact.name}
+        title={title}
         meta={`${artifact.kind} · ${generating ? "生成中" : artifact.status} · ${formatDate(artifact.createdAt)}`}
         generating={generating}
         onClick={() => onOpen(artifact)}
       />
+      <div className="design-project-actions">
+        <button type="button" onClick={() => void onExport(artifact)}>
+          导出
+        </button>
+        <button type="button" onClick={() => onReveal(artifact.entryPath || artifact.path)}>
+          显示文件
+        </button>
+      </div>
     </article>
   );
 }
 
-function DesignSystems({ systems, error }: { systems: DesignSystem[]; error: string }) {
+function DesignSystems({
+  systems,
+  error,
+  selectedId,
+  workspaceId,
+  onSelect,
+  onCreated,
+  onToast,
+}: {
+  systems: DesignSystem[];
+  error: string;
+  selectedId: string;
+  workspaceId?: string;
+  onSelect: (id: string) => void;
+  onCreated: () => void;
+  onToast: (toast: Omit<Toast, "id">) => void;
+}) {
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [content, setContent] = useState<DesignSystemContent | null>(null);
+  const selected = systems.find((item) => item.id === selectedId) || systems[0] || null;
+
+  useEffect(() => {
+    if (!selected) {
+      setContent(null);
+      return;
+    }
+    let active = true;
+    void hostApi
+      .readDesignSystem(selected.id, workspaceId)
+      .then((item) => active && setContent(item))
+      .catch(() => active && setContent(null));
+    return () => {
+      active = false;
+    };
+  }, [selected, workspaceId]);
+
+  const createSystem = async () => {
+    if (!workspaceId || !name.trim()) return;
+    const slug = slugify(name);
+    setCreating(true);
+    try {
+      await hostApi.writeFile(
+        workspaceId,
+        `.herdock/design-systems/${slug}/DESIGN.md`,
+        `# ${name.trim()}\n\n> Category: Workspace\n\n${name.trim()} 的可移植品牌合同。保持克制的色彩、清晰的层级和可访问的对比度。\n`,
+      );
+      await hostApi.writeFile(
+        workspaceId,
+        `.herdock/design-systems/${slug}/tokens.css`,
+        `:root {\n  --color-bg: #f6f4ef;\n  --color-surface: #ffffff;\n  --color-ink: #24231f;\n  --color-muted: #6f6b61;\n  --color-accent: #3b5ba5;\n  --radius-sm: 8px;\n  --radius-md: 14px;\n  --space-1: 4px;\n  --space-2: 8px;\n  --space-3: 12px;\n  --space-4: 16px;\n  --space-6: 24px;\n}\n`,
+      );
+      onSelect(slug);
+      setName("");
+      onCreated();
+      onToast({ kind: "ok", title: "已创建设计系统", detail: slug });
+    } catch (reason) {
+      onToast({ kind: "error", title: "创建失败", detail: String(reason) });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const colors = tokenColors(content?.tokensCss || "");
   return (
     <section className="design-page-section">
       <div className="design-page-title">
@@ -2046,58 +2320,139 @@ function DesignSystems({ systems, error }: { systems: DesignSystem[]; error: str
           <h2>设计系统</h2>
           <p>读取全局目录和工作区 .herdock/design-systems 下的 DESIGN.md 与 tokens.css。</p>
         </span>
+        <div className="design-create-row">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="新系统名称"
+            disabled={!workspaceId || creating}
+          />
+          <button
+            type="button"
+            className="primary"
+            disabled={!workspaceId || creating || !name.trim()}
+            onClick={() => void createSystem()}
+          >
+            在工作区新建
+          </button>
+        </div>
       </div>
       {error && (
         <div className="design-inline-error" role="alert">
           {error}
         </div>
       )}
-      <div className="design-system-grid">
-        {systems.map((system) => (
-          <article key={`${system.scope}:${system.id}`} className="design-system-card">
-            <span className="design-system-swatch">
-              <i />
-              <i />
-              <i />
-              <Palette size={15} />
-            </span>
-            <span className="design-system-copy">
-              <small className="mono">{system.category}</small>
-              <strong>{system.name}</strong>
-              <p>{system.description || "可移植的 HerDock 设计上下文。"}</p>
-            </span>
-            <span className="design-system-foot">
-              <em>{scopeLabel(system.scope)}</em>
-              {system.hasTokens && <em className="mono ok">tokens.css</em>}
-            </span>
-          </article>
-        ))}
-      </div>
+      {!systems.length ? (
+        <DesignEmptyColumn
+          title="还没有设计系统"
+          body="内置 Neutral Modern 会在连接本地核心后出现。也可以在工作区新建一份。"
+        />
+      ) : (
+        <div className="design-systems-layout">
+          <div className="design-system-grid">
+            {systems.map((system) => (
+              <article
+                key={`${system.scope}:${system.id}`}
+                className={`design-system-card ${system.id === selected?.id ? "on" : ""}`}
+                onClick={() => onSelect(system.id)}
+              >
+                <span className="design-system-swatch">
+                  <i />
+                  <i />
+                  <i />
+                  <Palette size={15} />
+                </span>
+                <span className="design-system-copy">
+                  <small className="mono">{system.category}</small>
+                  <strong>{system.name}</strong>
+                  <p>{system.description || "可移植的 HerDock 设计上下文。"}</p>
+                </span>
+                <span className="design-system-foot">
+                  <em>{scopeLabel(system.scope)}</em>
+                  {system.hasTokens && <em className="mono ok">tokens.css</em>}
+                </span>
+              </article>
+            ))}
+          </div>
+          {selected && (
+            <aside className="design-system-detail" data-slot="spec-sheet">
+              <DesignSpecSheet
+                title={selected.name}
+                subtitle={`${scopeLabel(selected.scope)} · ${selected.category}`}
+                rows={[
+                  { label: "ID", value: selected.id, emphasis: true },
+                  { label: "范围", value: scopeLabel(selected.scope) },
+                  { label: "tokens.css", value: selected.hasTokens ? "有" : "无" },
+                ]}
+              />
+              {!!colors.length && (
+                <div className="design-system-swatches" aria-label="色板">
+                  {colors.map((color) => (
+                    <i key={color} style={{ background: color }} title={color} />
+                  ))}
+                </div>
+              )}
+              {content?.designMarkdown && (
+                <pre className="design-system-md">{content.designMarkdown.slice(0, 900)}</pre>
+              )}
+              {workspaceId && selected.scope !== "builtin" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void hostApi.revealFile(
+                      workspaceId,
+                      `.herdock/design-systems/${selected.id}/DESIGN.md`,
+                    )
+                  }
+                >
+                  在文件夹中打开
+                </button>
+              )}
+            </aside>
+          )}
+        </div>
+      )}
     </section>
   );
 }
 
 function DesignAssets({
   items,
+  selectedIds,
+  workspaceId,
   workspaceReady,
   onImport,
+  onToggle,
+  onRemove,
+  onToast,
 }: {
   items: ContextItem[];
+  selectedIds: string[];
+  workspaceId?: string;
   workspaceReady: boolean;
   onImport: (paths: string[]) => Promise<void>;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => Promise<void>;
+  onToast: (toast: Omit<Toast, "id">) => void;
 }) {
-  const assets = items.filter(
-    (item) => item.mimeType.startsWith("image/svg+xml") || item.mimeType.startsWith("text/css"),
-  );
+  const assets = items.filter(isDesignAsset);
   const importFiles = async () => {
     const selected = await open({
       multiple: true,
       directory: false,
-      title: "导入 CSS 或 SVG 设计素材",
-      filters: [{ name: "设计素材", extensions: ["css", "svg"] }],
+      title: "导入设计素材",
+      filters: [
+        { name: "设计素材", extensions: ["css", "svg", "png", "jpg", "jpeg", "webp", "md", "txt"] },
+      ],
     });
     const paths = typeof selected === "string" ? [selected] : selected || [];
-    if (paths.length) await onImport(paths);
+    if (!paths.length) return;
+    try {
+      await onImport(paths);
+      onToast({ kind: "ok", title: `已导入 ${paths.length} 个素材` });
+    } catch (error) {
+      onToast({ kind: "error", title: "导入失败", detail: String(error) });
+    }
   };
   return (
     <section className="design-page-section">
@@ -2105,34 +2460,84 @@ function DesignAssets({
         <span>
           <small className="mono">REFERENCE MATERIAL</small>
           <h2>素材库</h2>
-          <p>导入的 tokens 与矢量素材都会成为设计会话的上下文。</p>
+          <p>导入的图片、tokens 与参考文案都会成为下次设计会话的上下文。</p>
         </span>
         <button type="button" disabled={!workspaceReady} onClick={() => void importFiles()}>
           <UploadSimple size={13} />
-          导入 CSS / SVG
+          导入素材
         </button>
       </div>
-      {assets.length ? (
+      {!workspaceReady ? (
+        <DesignEmptyColumn
+          title="正在准备工作区"
+          body="素材会加入当前工作区上下文，供下次生成引用。"
+        />
+      ) : assets.length ? (
         <div className="design-asset-grid">
           {assets.map((item) => (
-            <DesignArtifactCard
+            <article
               key={item.id}
-              title={item.displayName}
-              meta={`${item.mimeType.split(";")[0]} · ${formatBytes(item.sizeBytes)}`}
-            />
+              className={`design-asset-card ${selectedIds.includes(item.id) ? "on" : ""}`}
+            >
+              <DesignAssetThumb item={item} workspaceId={workspaceId} />
+              <DesignArtifactCard
+                title={item.displayName}
+                meta={`${item.mimeType.split(";")[0]} · ${formatBytes(item.sizeBytes)}`}
+                onClick={() => onToggle(item.id)}
+              />
+              <div className="design-project-actions">
+                <button type="button" onClick={() => onToggle(item.id)}>
+                  {selectedIds.includes(item.id) ? "已加入上下文" : "加入下次生成"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void onRemove(item.id).then(() =>
+                      onToast({ kind: "ok", title: "已移除素材", detail: item.displayName }),
+                    )
+                  }
+                >
+                  <Trash size={12} />
+                  移除
+                </button>
+              </div>
+            </article>
           ))}
         </div>
       ) : (
-        <div className="design-empty-state small">
-          <ImageSquare size={30} weight="thin" />
-          <strong>暂无设计素材</strong>
-          <p>可在这里直接导入 CSS 或 SVG；文件会加入当前工作区上下文。</p>
-          <button type="button" disabled={!workspaceReady} onClick={() => void importFiles()}>
-            选择文件
-          </button>
-        </div>
+        <DesignEmptyColumn
+          title="暂无设计素材"
+          body="可导入图片、CSS、SVG 或参考文案；文件会加入当前工作区上下文。"
+          action={{ label: "选择文件", onClick: () => void importFiles() }}
+        />
       )}
     </section>
+  );
+}
+
+function DesignAssetThumb({ item, workspaceId }: { item: ContextItem; workspaceId?: string }) {
+  const [src, setSrc] = useState("");
+  const path = item.relativePath || item.storedPath;
+  const image = item.mimeType.startsWith("image/");
+  useEffect(() => {
+    if (!image || !workspaceId || !path) return;
+    let active = true;
+    void hostApi
+      .previewFile(workspaceId, path)
+      .then((preview) => {
+        if (!active || !preview.bytesBase64) return;
+        setSrc(`data:${preview.mime || item.mimeType};base64,${preview.bytesBase64}`);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [image, item.mimeType, path, workspaceId]);
+  if (src) return <img className="design-asset-preview" src={src} alt="" />;
+  return (
+    <span className="design-asset-preview icon">
+      {image ? <ImageSquare size={22} /> : <FileHtml size={22} />}
+    </span>
   );
 }
 
@@ -2453,4 +2858,27 @@ function formatDate(value?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+function slugify(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug.slice(0, 48) || "brand";
+}
+function tokenColors(css: string): string[] {
+  const found = [...css.matchAll(/--[\w-]+:\s*(#[0-9a-fA-F]{3,8})\b/g)].map((match) => match[1]);
+  return Array.from(new Set(found)).slice(0, 8);
+}
+function isDesignAsset(item: ContextItem): boolean {
+  const mime = item.mimeType.split(";")[0].trim().toLowerCase();
+  const name = item.displayName.toLowerCase();
+  return (
+    mime.startsWith("image/") ||
+    mime === "text/css" ||
+    mime === "text/markdown" ||
+    mime === "text/plain" ||
+    /\.(svg|css|md|txt|png|jpe?g|webp|gif)$/i.test(name)
+  );
 }

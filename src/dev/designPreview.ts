@@ -413,6 +413,23 @@ const fileContents: Record<string, string> = {
     "order,store,delta,status\nA-10482,上海静安,18.2%,review\nA-10507,杭州滨江,-12.8%,error\n",
   "AGENTS.md": "# Workspace rules\n\nRead data files before editing validation rules.\n",
 };
+const previewDesignSystems: Array<{
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  scope: string;
+  hasTokens: boolean;
+}> = [
+  {
+    id: "default",
+    name: "Neutral Modern",
+    category: "Starter",
+    description: "HerDock 内置的中性、清晰、产品化设计基线。",
+    scope: "builtin",
+    hasTokens: true,
+  },
+];
 
 export function installDesignPreview() {
   mockWindows("main");
@@ -627,6 +644,7 @@ export function installDesignPreview() {
         case "workspace_list":
           return [workspace];
         case "workspace_open":
+        case "workspace_ensure_default":
           return workspace;
         case "workspace_delete":
           return null;
@@ -980,29 +998,21 @@ export function installDesignPreview() {
             },
           ];
         case "design_system_list":
-          return [
-            {
-              id: "default",
-              name: "Neutral Modern",
-              category: "Starter",
-              description: "HerDock 内置的中性、清晰、产品化设计基线。",
-              scope: "builtin",
-              hasTokens: true,
-            },
-          ];
-        case "design_system_read":
+          return previewDesignSystems;
+        case "design_system_read": {
+          const id = String(args.id || "default");
+          const system =
+            previewDesignSystems.find((item) => item.id === id) || previewDesignSystems[0];
           return {
-            system: {
-              id: "default",
-              name: "Neutral Modern",
-              category: "Starter",
-              description: "HerDock 内置的中性、清晰、产品化设计基线。",
-              scope: "builtin",
-              hasTokens: true,
-            },
-            designMarkdown: "# Neutral Modern\n\nClear, calm product interface.",
-            tokensCss: ":root { --accent: #3b5ba5; }",
+            system,
+            designMarkdown:
+              fileContents[`.herdock/design-systems/${id}/DESIGN.md`] ||
+              `# ${system.name}\n\nClear, calm product interface.`,
+            tokensCss:
+              fileContents[`.herdock/design-systems/${id}/tokens.css`] ||
+              ":root { --accent: #3b5ba5; }",
           };
+        }
         case "artifact_preview":
           return {
             path: String(args.path),
@@ -1018,7 +1028,19 @@ export function installDesignPreview() {
           };
         }
         case "file_write": {
-          fileContents[String(args.path)] = String(args.content);
+          const path = String(args.path);
+          fileContents[path] = String(args.content);
+          const match = /\.herdock\/design-systems\/([^/]+)\/DESIGN\.md$/.exec(path);
+          if (match && !previewDesignSystems.some((item) => item.id === match[1])) {
+            previewDesignSystems.push({
+              id: match[1],
+              name: match[1],
+              category: "Workspace",
+              description: "工作区设计系统",
+              scope: "workspace",
+              hasTokens: true,
+            });
+          }
           return null;
         }
         case "file_search":

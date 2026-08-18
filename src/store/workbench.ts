@@ -128,7 +128,7 @@ type SessionSnapshot = {
 };
 export type TabFeature = "agent" | "browser" | "terminal" | "editor" | "diff";
 
-export type ToastKind = "approval" | "error";
+export type ToastKind = "approval" | "error" | "ok";
 export type Toast = {
   id: string;
   kind: ToastKind;
@@ -316,6 +316,7 @@ type State = {
 
   init: () => Promise<void>;
   openWorkspacePath: (path: string) => Promise<void>;
+  ensureDefaultWorkspace: () => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
   refreshTree: () => Promise<void>;
   refreshPanels: () => Promise<void>;
@@ -1008,7 +1009,7 @@ export const useWorkbench = create<State>((set, get) => ({
         })),
       });
       if (workspaces[0]) await get().openWorkspacePath(workspaces[0].rootPath);
-      else await get().refreshPanels();
+      if (!get().workspace) await get().ensureDefaultWorkspace();
     } catch (error) {
       set({ hostOnline: false, error: String(error), statusLine: "Tauri 核心初始化失败" });
     }
@@ -1075,14 +1076,23 @@ export const useWorkbench = create<State>((set, get) => ({
     }
   },
 
+  async ensureDefaultWorkspace() {
+    try {
+      const workspace = await hostApi.ensureDefaultWorkspace();
+      await get().openWorkspacePath(workspace.rootPath);
+    } catch (error) {
+      set({ error: String(error), statusLine: "无法准备默认工作区" });
+    }
+  },
+
   async deleteWorkspace(id) {
     const current = get();
     const removing = current.workspaces.find((item) => item.id === id);
     if (!removing) return;
     const sessionIds = new Set(
-      (current.workspaceSessions[id] || current.sessions.filter((item) => item.workspaceId === id)).map(
-        (item) => item.id,
-      ),
+      (
+        current.workspaceSessions[id] || current.sessions.filter((item) => item.workspaceId === id)
+      ).map((item) => item.id),
     );
     try {
       await hostApi.deleteWorkspace(id);
@@ -1098,9 +1108,7 @@ export const useWorkbench = create<State>((set, get) => ({
           workspaces: remaining,
           workspaceSessions,
           collapsedWorkspaces,
-          sessions: wasCurrent
-            ? []
-            : state.sessions.filter((item) => item.workspaceId !== id),
+          sessions: wasCurrent ? [] : state.sessions.filter((item) => item.workspaceId !== id),
           allRuns: state.allRuns.filter((item) => item.workspaceId !== id),
           sessionSnapshots,
           renamingSessionId: sessionIds.has(state.renamingSessionId || "")
@@ -1117,37 +1125,7 @@ export const useWorkbench = create<State>((set, get) => ({
         await get().openWorkspacePath(remaining[0].rootPath);
         return;
       }
-      for (const browserId of get()
-        .tabs.map((tab) => tab.browserId)
-        .filter(Boolean) as string[]) {
-        void hostApi.closeBrowser(browserId);
-      }
-      set({
-        workspace: null,
-        session: null,
-        run: null,
-        runs: [],
-        events: [],
-        hasEarlierEvents: false,
-        historyWindowExpanded: false,
-        loadingEarlierEvents: false,
-        checkpoints: [],
-        checkpointPreview: null,
-        tree: [],
-        contextItems: [],
-        selectedContextIds: [],
-        artifacts: [],
-        sendQueue: [],
-        runLaunching: false,
-        tabs: BASE_TABS,
-        activeTab: "chat",
-        centerView: "chat",
-        activeDesignArtifactId: null,
-        designDraft: EMPTY_DESIGN_DRAFT,
-        statusLine: "未打开项目",
-        error: null,
-      });
-      await get().refreshPanels();
+      await get().ensureDefaultWorkspace();
     } catch (error) {
       set({ error: String(error) });
     }
@@ -1972,6 +1950,7 @@ export const useWorkbench = create<State>((set, get) => ({
   },
 
   async startDesignRun(input) {
+    if (!get().workspace) await get().ensureDefaultWorkspace();
     const {
       workspace,
       providerId,
@@ -2060,7 +2039,9 @@ export const useWorkbench = create<State>((set, get) => ({
         designDraft: { ...EMPTY_DESIGN_DRAFT, workspaceId: workspace.id },
       }));
     } catch (error) {
-      set({ error: String(error), statusLine: "设计任务启动失败" });
+      const detail = String(error);
+      set({ error: detail, statusLine: "设计任务启动失败" });
+      get().pushToast({ kind: "error", title: "设计任务启动失败", detail });
     }
   },
 
@@ -2109,7 +2090,9 @@ export const useWorkbench = create<State>((set, get) => ({
         statusLine: `${next.id} · 设计迭代已启动`,
       }));
     } catch (error) {
-      set({ error: String(error), statusLine: "设计迭代启动失败" });
+      const detail = String(error);
+      set({ error: detail, statusLine: "设计迭代启动失败" });
+      get().pushToast({ kind: "error", title: "设计迭代启动失败", detail });
     }
   },
 

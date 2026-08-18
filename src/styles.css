@@ -4864,117 +4864,139 @@ body.is-resizing-y * {
 /* ---- session composer ---- */
 
 .design-iterate-composer {
+  position: relative;
   flex-shrink: 0;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--line-panel);
+  padding: 8px 10px 12px;
 }
-.design-composer-card {
-  padding: 9px 10px 8px;
+.design-composer-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid var(--line-ctrl);
-  border-radius: var(--r-7);
+  border-radius: 24px;
   background: var(--card);
   box-shadow: var(--shadow-1);
 }
-.design-composer-chips {
+.design-composer-attachments {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 8px;
+  gap: 6px;
 }
-.design-composer-chips span {
+.design-composer-attachments span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 2px 6px;
-  border-radius: var(--r-3);
+  padding: 5px 9px;
+  border-radius: 14px;
   background: var(--hover-chip);
   color: var(--ink-quiet);
-  font-size: 9.5px;
+  font-size: 11px;
 }
-.design-composer-chips span.accent {
+.design-composer-attachments span.accent {
   background: var(--accent-bg);
   color: var(--accent);
 }
-.design-composer-card textarea {
+.design-composer-bar textarea {
   width: 100%;
-  min-height: 34px;
+  min-height: 44px;
   border: 0;
-  padding: 0;
+  padding: 4px 10px 0;
   background: transparent;
   color: var(--ink-body);
   font-family: inherit;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.45;
   resize: none;
 }
-.design-composer-card textarea:focus {
+.design-composer-bar textarea:focus {
   outline: none;
 }
-.design-composer-card textarea::placeholder {
+.design-composer-bar textarea::placeholder {
   color: var(--muted-3);
 }
-.design-composer-row {
+.design-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 2px;
+}
+.design-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.design-composer-attach {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.design-composer-attach:hover {
+  background: var(--hover-soft);
+  color: var(--ink);
+}
+.design-composer-model {
+  height: 32px;
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
-}
-.design-composer-row .round {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line-soft);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.design-composer-row .pill {
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-pill);
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink-soft);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12.5px;
   cursor: pointer;
 }
-.design-composer-row .pill:hover,
-.design-composer-row .round:hover {
-  border-color: var(--accent-line);
+.design-composer-model:hover {
+  background: var(--hover-soft);
+  color: var(--ink);
 }
-.design-composer-row .pill select {
+.design-composer-model select {
+  max-width: 88px;
   border: 0;
   background: transparent;
   color: inherit;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12.5px;
   cursor: pointer;
 }
-.design-composer-row .pill select:focus {
+.design-composer-model select:focus {
   outline: none;
 }
-.design-composer-row .send {
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
+.design-composer-send {
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
+  border-radius: 999px;
+  background: var(--faint-2);
+  color: var(--muted-3);
   cursor: pointer;
 }
-.design-composer-row .send:disabled {
-  background: var(--faint-2);
+.design-composer-send.is-ready,
+.design-composer-send.is-streaming {
+  background: var(--ink);
+  color: var(--card);
+}
+.design-composer-send.is-idle,
+.design-composer-send:disabled {
   cursor: default;
+}
+.design-plus-wrap {
+  position: relative;
 }
 
 /* ---- canvas ---- */

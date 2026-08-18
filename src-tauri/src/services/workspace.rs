@@ -50,6 +50,17 @@ pub fn canonical_workspace(path: &str) -> Result<PathBuf> {
     Ok(root)
 }
 
+pub fn default_workspace_root(data_dir: &Path) -> PathBuf {
+    data_dir.join("workspace")
+}
+
+pub fn ensure_default_workspace_dir(data_dir: &Path) -> Result<PathBuf> {
+    let root = default_workspace_root(data_dir);
+    fs::create_dir_all(&root)
+        .with_context(|| format!("cannot create default workspace {}", root.display()))?;
+    canonical_workspace(&root.to_string_lossy())
+}
+
 pub fn resolve_existing(root: &Path, relative: &str) -> Result<PathBuf> {
     let root = root.canonicalize()?;
     let rel = safe_relative(relative)?;
@@ -605,6 +616,18 @@ fn language_for(path: &Path) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creates_default_workspace_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = ensure_default_workspace_dir(dir.path()).unwrap();
+        assert!(root.is_dir());
+        assert_eq!(
+            root.file_name().and_then(|name| name.to_str()),
+            Some("workspace")
+        );
+        assert_eq!(ensure_default_workspace_dir(dir.path()).unwrap(), root);
+    }
 
     #[test]
     fn rejects_parent_and_absolute_paths() {

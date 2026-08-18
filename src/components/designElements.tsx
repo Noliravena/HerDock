@@ -1,7 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Check, CircleNotch, FileText, TerminalWindow, X } from "@phosphor-icons/react";
 import type { Approval, Checkpoint } from "../host/client";
-import { TypingDots } from "./GenerationLoader";
 import {
   ArtifactCard,
   ConnectionBanner,
@@ -13,9 +12,15 @@ import {
 
 export { useElapsedLabel } from "./pageElements";
 
-/** assistant-ui typing-indicator (bubble) — waiting for the first tokens. */
+/** assistant-ui typing-indicator — Chat panel bouncing dots. */
 export function DesignTypingBubble() {
-  return <TypingDots variant="bubble" />;
+  return (
+    <div className="design-chat-typing" data-slot="chat-panel-typing" role="status" aria-label="正在输入">
+      <span aria-hidden="true" />
+      <span aria-hidden="true" />
+      <span aria-hidden="true" />
+    </div>
+  );
 }
 
 /** assistant-ui error-state: quiet red banner with a retry path. */
@@ -199,8 +204,54 @@ export function DesignEmptyColumn(props: {
   body: string;
   suggestions?: string[];
   onSuggest?: (text: string) => void;
+  action?: { label: string; onClick: () => void };
 }) {
   return <PageEmpty className="design-empty-hero" {...props} />;
+}
+
+/** assistant-ui onboarding: three steps, skip always available, last action is Start. */
+export type DesignOnboardingStep = { title: string; body: string; example: string };
+
+export function DesignOnboarding({
+  steps,
+  index,
+  onNext,
+  onSkip,
+}: {
+  steps: readonly DesignOnboardingStep[];
+  index: number;
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  const current = Math.max(0, Math.min(index, steps.length - 1));
+  const step = steps[current];
+  if (!step) return null;
+  const last = current >= steps.length - 1;
+  return (
+    <div className="design-onboard" data-slot="onboarding">
+      <div key={current} className="design-onboard-copy">
+        <span className="mono">
+          {current + 1} / {steps.length}
+        </span>
+        <strong>{step.title}</strong>
+        <p>{step.body}</p>
+        <span className="design-onboard-example">{step.example}</span>
+      </div>
+      <div className="design-onboard-foot">
+        <span className="design-onboard-dots" aria-hidden="true">
+          {steps.map((_, i) => (
+            <i key={i} className={i === current ? "on" : ""} />
+          ))}
+        </span>
+        <button type="button" onClick={onSkip}>
+          跳过
+        </button>
+        <button type="button" className="primary" onClick={onNext}>
+          {last ? "开始" : "下一步"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** assistant-ui connection-state banner. */
@@ -249,7 +300,9 @@ export function DesignSessionViewport({
   return (
     <div className="design-session-viewport">
       <div className="design-session-scroll" ref={scrollRef} onScroll={handleScroll}>
-        {children}
+        <div className="design-chat-messages" data-slot="chat-panel-messages">
+          {children}
+        </div>
       </div>
       {unseen > 0 && (
         <button

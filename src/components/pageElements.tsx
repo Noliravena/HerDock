@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   ArrowClockwise,
   ArrowUpRight,
@@ -10,6 +18,7 @@ import {
   Pause,
   WarningCircle,
 } from "@phosphor-icons/react";
+import type { CheckpointPreview } from "../host/client";
 import { elapsedClock } from "./ThinkingIndicator";
 
 /** assistant-ui empty-state: greeting + optional chips or a primary action. */
@@ -354,7 +363,11 @@ export function ConsoleShell({
       )}
       <header className="g-page-head" data-tauri-drag-region>
         <h1>{title}</h1>
-        {actions}
+        {actions ? (
+          <div className="g-head-actions" data-tauri-drag-region="false">
+            {actions}
+          </div>
+        ) : null}
       </header>
       <div className={`g-page-body ${bodyClassName}`.trim()}>{children}</div>
     </div>
@@ -456,6 +469,96 @@ export function ConfirmCard({
         </footer>
       </div>
     </div>
+  );
+}
+
+/** assistant-ui checkpoints overlay — file list + restore, Esc to dismiss. */
+export function CheckpointPreviewDialog({
+  preview,
+  onClose,
+  onRestore,
+}: {
+  preview: CheckpointPreview;
+  onClose: () => void;
+  onRestore: (id: string) => void | Promise<void>;
+}) {
+  const [askConfirm, layer] = useConfirm();
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+  return (
+    <>
+      <div className="checkpoint-backdrop" role="presentation" onMouseDown={onClose}>
+        <section
+          className="checkpoint-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label="检查点预览"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <header>
+            <div>
+              <b>恢复检查点</b>
+              <span>
+                {preview.scope === "workspace" ? "工作区快照" : "文件快照"} · {preview.files.length}{" "}
+                个变更
+              </span>
+            </div>
+            <button type="button" className="ghost-btn" onClick={onClose}>
+              关闭
+            </button>
+          </header>
+          <div className="checkpoint-files">
+            {preview.files.map((file) => (
+              <details key={file.path}>
+                <summary>
+                  <span className={`edit-kind ${file.kind === "deleted" ? "D" : "M"}`}>
+                    {file.kind === "deleted" ? "D" : "M"}
+                  </span>
+                  {file.path}
+                </summary>
+                {file.diff ? (
+                  <pre>{file.diff}</pre>
+                ) : (
+                  <div className="empty-hint">二进制文件或无文本 Diff</div>
+                )}
+              </details>
+            ))}
+            {!preview.files.length && (
+              <div className="empty-hint">当前工作区与该检查点一致，无需恢复。</div>
+            )}
+          </div>
+          <footer>
+            <span>恢复会保留运行前已存在的工作区改动。</span>
+            <button
+              type="button"
+              className="primary-btn"
+              disabled={!preview.files.length}
+              onClick={() => {
+                const id = preview.checkpointId;
+                if (!id) return;
+                void askConfirm({
+                  title: "恢复此检查点？",
+                  body: "确认恢复此检查点？当前运行产生的更改会被还原。",
+                  confirmLabel: "恢复",
+                  danger: true,
+                }).then((ok) => {
+                  if (!ok) return;
+                  void Promise.resolve(onRestore(id)).then(onClose);
+                });
+              }}
+            >
+              确认恢复
+            </button>
+          </footer>
+        </section>
+      </div>
+      {layer}
+    </>
   );
 }
 
@@ -715,6 +818,108 @@ export function FileTreeCard({
 
 function lite(value: number): string {
   return value >= 1000 ? `${(value / 1000).toFixed(1)}K` : String(value);
+}
+
+/** assistant-ui Tabs: list + trigger + sliding active indicator.
+ * Anatomy-only port of https://www.assistant-ui.com/docs/ui/tabs */
+export type AuiTabsVariant = "default" | "line" | "ghost" | "pills" | "outline";
+export type AuiTabsSize = "sm" | "default" | "lg";
+export type AuiTabItem<T extends string = string> = {
+  value: T;
+  label: ReactNode;
+  icon?: ReactNode;
+  title?: string;
+  disabled?: boolean;
+};
+
+export function AuiTabs<T extends string>({
+  value,
+  onValueChange,
+  variant = "default",
+  size = "sm",
+  items,
+  className = "",
+  "aria-label": ariaLabel,
+}: {
+  value: T;
+  onValueChange: (value: T) => void;
+  variant?: AuiTabsVariant;
+  size?: AuiTabsSize;
+  items: readonly AuiTabItem<T>[];
+  className?: string;
+  "aria-label"?: string;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+
+  const updateIndicator = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const active = list.querySelector<HTMLElement>(
+      '[data-slot="tabs-trigger"][data-active="true"]',
+    );
+    if (!active) {
+      setIndicator({ left: 0, width: 0 });
+      return;
+    }
+    setIndicator({ left: active.offsetLeft, width: active.offsetWidth });
+  }, []);
+
+  useLayoutEffect(() => {
+    updateIndicator();
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateIndicator);
+    observer.observe(list);
+    for (const child of list.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [updateIndicator, value, items]);
+
+  return (
+    <div className={`aui-tabs ${className}`.trim()} data-slot="tabs">
+      <div
+        ref={listRef}
+        className="aui-tabs-list"
+        data-slot="tabs-list"
+        data-variant={variant}
+        data-size={size}
+        role="tablist"
+        aria-label={ariaLabel}
+      >
+        <span
+          className="aui-tabs-indicator"
+          data-slot="tabs-indicator"
+          aria-hidden="true"
+          style={{
+            transform: `translateX(${indicator.left}px)`,
+            width: indicator.width,
+            opacity: indicator.width ? 1 : 0,
+          }}
+        />
+        {items.map((item) => {
+          const active = item.value === value;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              role="tab"
+              data-slot="tabs-trigger"
+              data-value={item.value}
+              data-active={active ? "true" : undefined}
+              aria-selected={active}
+              title={item.title}
+              disabled={item.disabled}
+              className="aui-tabs-trigger"
+              onClick={() => onValueChange(item.value)}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function dotOf(tone?: "ok" | "warn" | "bad" | "live"): string {

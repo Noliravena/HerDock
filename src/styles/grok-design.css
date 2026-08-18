@@ -59,9 +59,13 @@
 
 /* ── 1. Header ───────────────────────────────────────────────────────── */
 .simple-shell .design-header {
-  height: 48px;
+  height: var(--titlebar-height);
+  min-height: var(--titlebar-height);
   border-bottom: 1px solid var(--hairline);
   background: var(--design-page);
+}
+.simple-shell.is-win .design-header {
+  padding-right: calc(var(--win-caption-clearance, 138px) + 6px);
 }
 .simple-shell .design-brand {
   gap: 10px;
@@ -82,33 +86,17 @@
   font-size: 9.5px;
   color: var(--text-tertiary);
 }
-.simple-shell .design-routes button {
-  gap: 7px;
-  padding: 0 13px;
-  font-size: 12.5px;
-  font-weight: 450;
-  color: var(--text-secondary);
-  transition: color 120ms ease;
+.simple-shell .design-routes {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  height: auto;
+  padding: 0 10px;
+  background: none;
+  box-shadow: none;
 }
-.simple-shell .design-routes button svg {
-  opacity: 0.75;
-}
-.simple-shell .design-routes button:hover {
-  color: var(--text-primary);
-}
-.simple-shell .design-routes button.active {
-  color: var(--text-primary);
-  font-weight: 560;
-}
-.simple-shell .design-routes button.active svg {
-  opacity: 1;
-}
-.simple-shell .design-routes button.active > i {
-  left: 11px;
-  right: 11px;
-  height: 2px;
-  border-radius: 1px 1px 0 0;
-  background: var(--g-accent);
+.simple-shell .design-routes .aui-tabs-list {
+  height: 32px;
 }
 /* Header chips — quiet ghost controls */
 .simple-shell .design-chip,
@@ -173,23 +161,32 @@
 
 /* ── 2. Doc tabs + viewport segmented control ────────────────────────── */
 .simple-shell .design-doc-tabs {
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--hairline);
+  background: var(--design-page);
 }
-.simple-shell .design-doc-tabs > button {
-  font-size: 12px;
-  color: var(--text-secondary);
-  transition:
-    background 120ms ease,
-    color 120ms ease;
+.simple-shell .design-doc-tabs > .aui-tabs {
+  min-width: 0;
+  flex: 1;
 }
-.simple-shell .design-doc-tabs > button:hover {
+.simple-shell .design-doc-tabs > button.design-doc-add {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.simple-shell .design-doc-tabs > button.design-doc-add:hover {
   color: var(--text-primary);
-}
-.simple-shell .design-doc-tabs > button.active {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  font-weight: 550;
-  box-shadow: inset 0 -2px 0 var(--g-accent);
+  background: var(--bg-hover);
 }
 .simple-shell .design-doc-size {
   font-size: 10px;
@@ -332,17 +329,13 @@
   border-left: 1px solid var(--hairline);
 }
 .simple-shell .inspector-tabs {
-  border-bottom: 1px solid var(--hairline);
-}
-.simple-shell .inspector-tabs button {
-  font-size: 12px;
-  color: var(--text-secondary);
-  transition: color 120ms ease;
-}
-.simple-shell .inspector-tabs button.active {
-  color: var(--text-primary);
-  font-weight: 550;
-  box-shadow: inset 0 -2px 0 var(--g-accent);
+  display: block;
+  height: auto;
+  margin: 8px 10px 0;
+  padding: 0;
+  border-bottom: none;
+  background: none;
+  box-shadow: none;
 }
 .simple-shell .tweak-selection strong {
   color: var(--text-primary);
@@ -439,19 +432,44 @@
   color: var(--g-danger);
 }
 
-/* ── 5. Session panel (design chat rail) ─────────────────────────────── */
+/* ── 5. Session panel (assistant-ui Chat panel) ──────────────────────── */
 .simple-shell .design-session-panel {
   background: var(--design-page);
   border-right: 1px solid var(--hairline);
 }
-.simple-shell .canvas-panel-head {
-  border-bottom: 1px solid var(--hairline);
-}
-.simple-shell .design-bubble.user {
-  border-radius: 12px 12px 4px 12px;
-  background: var(--g-accent-muted);
-  color: var(--text-primary);
+.simple-shell .design-chat-head {
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 14px;
+  color: var(--text-secondary);
   font-size: 12.5px;
+  font-weight: 500;
+}
+.simple-shell .design-chat-turns {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.simple-shell .design-chat-head .design-status-pill {
+  margin-left: auto;
+}
+.simple-shell .design-chat-head button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.simple-shell .design-chat-head button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* ── 6. Projects / systems / assets routes ───────────────────────────── */
@@ -512,14 +530,97 @@
   cursor: pointer;
 }
 
-.simple-shell .canvas-panel-head {
-  min-height: 33px;
-  height: auto;
-  padding: 4px 10px;
+.simple-shell .design-session-scroll {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 0;
+  padding: 0;
 }
 
-.simple-shell .canvas-panel-head .design-status-pill {
-  margin-left: auto;
+.simple-shell .design-chat-messages {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px;
+}
+
+.simple-shell .design-chat-user {
+  align-self: flex-end;
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.55;
+  animation: design-chat-in 0.3s ease;
+}
+
+.simple-shell .design-chat-user p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.simple-shell .design-chat-assistant {
+  align-self: flex-start;
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: color-mix(in srgb, var(--text-primary) 72%, transparent);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.simple-shell .design-chat-typing {
+  display: flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+}
+
+.simple-shell .design-chat-typing span {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 40%, transparent);
+  animation: design-chat-bounce 1.1s ease-in-out infinite;
+}
+
+.simple-shell .design-chat-typing span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.simple-shell .design-chat-typing span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes design-chat-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes design-chat-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .simple-shell .design-status-pill {
@@ -621,6 +722,8 @@
     color 0.12s ease;
 }
 
+.simple-shell .design-chat-user:hover .design-copy-btn,
+.simple-shell .design-chat-assistant:hover .design-copy-btn,
 .simple-shell .design-bubble.agent:hover .design-copy-btn,
 .simple-shell .design-bubble.user:hover .design-copy-btn,
 .simple-shell .design-copy-btn:focus-visible,
@@ -1212,6 +1315,10 @@
   padding: 24px 16px;
   text-align: center;
 }
+.simple-shell .design-chat-messages .design-empty-hero {
+  margin: 0 auto;
+  padding: 8px 8px 16px;
+}
 
 .simple-shell .design-empty-hero h2 {
   margin: 0;
@@ -1286,21 +1393,124 @@
   transform: translateY(-1px);
 }
 
-.simple-shell .design-composer-card {
+.simple-shell .design-iterate-composer {
   position: relative;
+  padding: 0 12px 12px;
+  border-top: none;
+  background: transparent;
+}
+
+.simple-shell .design-composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 4px 8px;
+}
+
+.simple-shell .design-composer-attachments span {
+  padding: 5px 9px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.simple-shell .design-composer-attachments span.accent {
+  background: color-mix(in srgb, var(--g-info) 16%, transparent);
+  color: var(--g-info);
+}
+
+.simple-shell .design-chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 6px 6px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.simple-shell .design-chat-attach {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.simple-shell .design-chat-attach:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-primary);
+}
+
+.simple-shell .design-chat-composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 22px;
+  max-height: 120px;
+  margin: 0;
+  padding: 5px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  caret-color: var(--g-info);
+}
+
+.simple-shell .design-chat-composer textarea:focus {
+  outline: none;
+}
+
+.simple-shell .design-chat-composer textarea::placeholder {
+  color: color-mix(in srgb, var(--text-primary) 35%, transparent);
+}
+
+.simple-shell .design-chat-send {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  cursor: pointer;
+}
+
+.simple-shell .design-chat-send:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.simple-shell .design-chat-send.is-streaming {
+  opacity: 1;
+}
+
+.simple-shell .design-chat-send:not(:disabled):hover,
+.simple-shell .design-chat-send.is-streaming:hover {
+  transform: scale(0.94);
 }
 
 .simple-shell .design-composer-menu {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   z-index: 4;
   margin: 0;
-  padding: 5px;
+  padding: 6px;
   list-style: none;
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--bg-elevated);
   box-shadow: var(--shadow-overlay);
 }
@@ -1310,11 +1520,12 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 9px;
+  padding: 8px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-primary);
+  font-size: 13.5px;
   text-align: left;
   cursor: pointer;
 }
@@ -1327,7 +1538,7 @@
 .simple-shell .design-composer-menu small {
   margin-left: auto;
   color: var(--text-tertiary);
-  font-size: 10.5px;
+  font-size: 11px;
 }
 
 .simple-shell .design-plus-wrap {
@@ -1341,15 +1552,11 @@
   bottom: calc(100% + 8px);
 }
 
-.simple-shell .design-composer-row .send.stop {
-  background: var(--text-primary);
-}
-
 .simple-shell .stop-sq {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
-  background: var(--bg-elevated);
+  background: currentColor;
 }
 
 .simple-shell .design-variant-frame {
@@ -1536,7 +1743,233 @@
   .simple-shell .design-empty-suggestions button,
   .simple-shell .design-caret,
   .simple-shell .design-ticker,
-  .simple-shell .design-artifact-icon.pulse {
+  .simple-shell .design-artifact-icon.pulse,
+  .simple-shell .design-chat-typing span,
+  .simple-shell .design-chat-user {
     animation: none;
+  }
+  .simple-shell .aui-tabs-indicator {
+    transition: none;
+  }
+}
+
+/* ── Onboarding + feature pages ──────────────────────────────────────── */
+.simple-shell .design-onboard {
+  width: min(360px, 100%);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-overlay);
+}
+.simple-shell .design-onboard-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.simple-shell .design-onboard-copy .mono {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.simple-shell .design-onboard-copy strong {
+  font-size: 15px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+.simple-shell .design-onboard-copy p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.simple-shell .design-onboard-example {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.simple-shell .design-onboard-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.simple-shell .design-onboard-dots {
+  display: flex;
+  gap: 6px;
+}
+.simple-shell .design-onboard-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tint-4);
+}
+.simple-shell .design-onboard-dots i.on {
+  width: 16px;
+  background: var(--text-secondary);
+}
+.simple-shell .design-onboard-foot button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.simple-shell .design-onboard-foot button:first-of-type {
+  margin-left: auto;
+}
+.simple-shell .design-onboard-foot button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .design-onboard-foot button.primary {
+  background: var(--g-accent);
+  color: var(--g-accent-contrast);
+}
+.simple-shell .design-page-title {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.simple-shell .design-page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.simple-shell .design-doc-tools .aui-tabs-trigger {
+  width: 28px;
+  padding: 0;
+}
+.simple-shell .design-page-toolbar .g-search {
+  width: 200px;
+  margin-left: 0;
+}
+.simple-shell .design-project-thumb {
+  display: block;
+  width: 100%;
+  height: 140px;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg-main);
+}
+.simple-shell .design-project-thumb .design-preview-body,
+.simple-shell .design-project-thumb iframe {
+  pointer-events: none;
+}
+.simple-shell .design-project-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+.simple-shell .design-project-actions button {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.simple-shell .design-project-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.simple-shell .design-systems-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+.simple-shell .design-system-card {
+  cursor: pointer;
+}
+.simple-shell .design-system-card.on {
+  outline: 2px solid var(--g-accent);
+  outline-offset: -1px;
+}
+.simple-shell .design-system-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .design-system-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.simple-shell .design-system-swatches i {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--tint-3);
+}
+.simple-shell .design-system-md {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.simple-shell .design-asset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.simple-shell .design-asset-card.on {
+  outline: 2px solid var(--g-accent);
+  outline-offset: -1px;
+}
+.simple-shell .design-asset-preview {
+  width: 100%;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--bg-main);
+}
+.simple-shell .design-asset-preview.icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+}
+.simple-shell .design-create-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.simple-shell .design-create-row input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+@media (max-width: 980px) {
+  .simple-shell .design-systems-layout {
+    grid-template-columns: 1fr;
   }
 }

@@ -123,6 +123,7 @@ pub fn run() {
             app::app_quit,
             workspace::workspace_list,
             workspace::workspace_open,
+            workspace::workspace_ensure_default,
             workspace::workspace_delete,
             workspace::workspace_set_auto_execute,
             workspace::workspace_tree,

@@ -148,6 +148,10 @@ html[data-theme="dark"] {
   -webkit-font-smoothing: antialiased;
 }
 
+.simple-shell.is-win {
+  --win-caption-clearance: 138px;
+}
+
 html.grok-ui {
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
@@ -479,6 +483,8 @@ html.grok-ui body {
   top: 0;
   left: 0;
   right: 0;
+  display: flex;
+  align-items: stretch;
   height: var(--titlebar-height);
   background: transparent;
   border-bottom: none;
@@ -492,6 +498,7 @@ html.grok-ui body {
 
 .simple-shell .caption-buttons {
   pointer-events: auto;
+  height: 100%;
 }
 
 .simple-shell .chrome-win .title {
@@ -507,6 +514,7 @@ html.grok-ui body {
 
 .simple-shell .caption-buttons button {
   width: 46px;
+  height: 100%;
   color: var(--text-secondary);
 }
 
@@ -2878,16 +2886,9 @@ html.grok-ui body {
   background: var(--bg-main);
 }
 
-.simple-shell.is-win .body-row:not(.right-open) .grok-tabs,
 .simple-shell.is-win .g-page-head,
 .simple-shell.is-win .design-header {
-  padding-right: 138px;
-}
-
-/* Files rail open: the pane ends at the rail, caption buttons can't reach
-   the tab bar — drop the clearance so the bar aligns with both edges. */
-.simple-shell.is-win .body-row:has(.files-panel) .grok-tabs {
-  padding-right: 0;
+  padding-right: calc(var(--win-caption-clearance) + 6px);
 }
 
 .simple-shell.is-mac .body-row.left-collapsed .grok-tabs,
@@ -3255,34 +3256,11 @@ html.grok-ui body {
 
 .simple-shell .design-routes {
   align-items: center;
-  height: 100%;
-  gap: 2px;
-  padding-left: 8px;
-}
-
-.simple-shell .design-routes button {
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text-secondary);
-}
-
-.simple-shell .design-routes button:hover {
-  background: transparent;
-  color: var(--text-primary);
-}
-
-.simple-shell .design-routes button.active {
-  background: var(--bg-input);
+  height: auto;
+  gap: 0;
+  padding-left: 10px;
+  background: none;
   box-shadow: none;
-  color: var(--text-primary);
-  font-weight: 400;
-}
-
-.simple-shell .design-routes button.active > i {
-  display: none;
 }
 
 .simple-shell .design-header-actions {

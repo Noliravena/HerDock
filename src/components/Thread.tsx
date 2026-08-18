@@ -47,7 +47,7 @@ import { runDuration, tokensLite } from "../lib/runMetrics";
 import { useWorkbench } from "../store/workbench";
 import { GenerationLoader, TypingDots } from "./GenerationLoader";
 import { Markdown } from "./Markdown";
-import { useConfirm } from "./pageElements";
+import { CheckpointPreviewDialog } from "./pageElements";
 
 const TERMINAL_PREVIEW_LINES = 400;
 const PROSE_PREVIEW_CHARS = 40_000;
@@ -344,7 +344,6 @@ export function Thread({
       setDraft: state.setDraft,
     })),
   );
-  const [askConfirm, confirmLayer] = useConfirm();
   const turns = useMemo(() => buildTurns(events), [events]);
   const relatedRuns = runs.filter((item) => item.id !== run?.id).slice(0, 3);
   // The assistant's chat identity is the model; CLIs are connections in Settings.
@@ -362,15 +361,6 @@ export function Thread({
       ? lastTurn.blocks[lastTurn.blocks.length - 1]?.id
       : undefined;
   const showThinking = streaming && (!lastTurn || lastTurn.role === "user");
-
-  useEffect(() => {
-    if (!checkpointPreview) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") useWorkbench.setState({ checkpointPreview: null });
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [checkpointPreview]);
 
   if (!turns.length && !run) {
     return (
@@ -541,83 +531,12 @@ export function Thread({
       )}
 
       {checkpointPreview && (
-        <div
-          className="checkpoint-backdrop"
-          role="presentation"
-          onMouseDown={() => useWorkbench.setState({ checkpointPreview: null })}
-        >
-          <section
-            className="checkpoint-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="检查点预览"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <b>恢复检查点</b>
-                <span>
-                  {checkpointPreview.scope === "workspace" ? "工作区快照" : "文件快照"} ·{" "}
-                  {checkpointPreview.files.length} 个变更
-                </span>
-              </div>
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={() => useWorkbench.setState({ checkpointPreview: null })}
-              >
-                关闭
-              </button>
-            </header>
-            <div className="checkpoint-files">
-              {checkpointPreview.files.map((file) => (
-                <details key={file.path}>
-                  <summary>
-                    <span className={`edit-kind ${file.kind === "deleted" ? "D" : "M"}`}>
-                      {file.kind === "deleted" ? "D" : "M"}
-                    </span>
-                    {file.path}
-                  </summary>
-                  {file.diff ? (
-                    <pre>{file.diff}</pre>
-                  ) : (
-                    <div className="empty-hint">二进制文件或无文本 Diff</div>
-                  )}
-                </details>
-              ))}
-              {!checkpointPreview.files.length && (
-                <div className="empty-hint">当前工作区与该检查点一致，无需恢复。</div>
-              )}
-            </div>
-            <footer>
-              <span>恢复会保留运行前已存在的工作区改动。</span>
-              <button
-                type="button"
-                className="primary-btn"
-                disabled={!checkpointPreview.files.length}
-                onClick={() => {
-                  const id = checkpointPreview.checkpointId;
-                  if (!id) return;
-                  void askConfirm({
-                    title: "恢复此检查点？",
-                    body: "确认恢复此检查点？当前运行产生的更改会被还原。",
-                    confirmLabel: "恢复",
-                    danger: true,
-                  }).then((ok) => {
-                    if (!ok) return;
-                    void restoreCheckpoint(id).then(() =>
-                      useWorkbench.setState({ checkpointPreview: null }),
-                    );
-                  });
-                }}
-              >
-                确认恢复
-              </button>
-            </footer>
-          </section>
-        </div>
+        <CheckpointPreviewDialog
+          preview={checkpointPreview}
+          onClose={() => useWorkbench.setState({ checkpointPreview: null })}
+          onRestore={(id) => restoreCheckpoint(id)}
+        />
       )}
-      {confirmLayer}
     </div>
   );
 }
